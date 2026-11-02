@@ -11,3 +11,30 @@ playwright-report/
 # Python
 __pycache__/
 *.pyc
+
+# Large binary audio — regenerated at runtime by sampleBank
+client/public/samples/
+client/dist/samples/
+
+# Sample generation intermediate products
+assets/
+scripts/out/
+scripts/shots/
+
+# Script backups
+scripts/backup/
+scripts/backup2/
+
+# Localization generation intermediate outputs (run scripts/*.py to regenerate)
+scripts/*.txt
+scripts/*.json
+
+# One-off debug / test scripts (root and e2e)
+*.py
+*.wav
+start.mjs
+e2e/tmp-agnes-test.mjs
+
+# Vite scratch
+client/node_modules/.vite-temp/
+client/vite.noclean.mjs

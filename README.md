@@ -266,6 +266,42 @@ Issues and pull requests are welcome — read [CONTRIBUTING.md](CONTRIBUTING.md)
 `npm run lint && npm test && npm run test:e2e` and update the docs with your change; the repo layout and conventions are
 in [docs/development.md](docs/development.md).
 
+## Sample credits
+
+The built-in sample bank ships real instrument recordings, all in the public domain
+([CC0-1.0](https://creativecommons.org/publicdomain/zero/1.0/)). Per instrument:
+
+| 乐器 | 来源 | 许可 |
+|------|------|------|
+| 古筝 (guzheng) | [Freesound · Pufermufin](https://freesound.org/)（经 XSXB-Band-Samples 整理） | CC0-1.0 |
+| 二胡 (erhu) | [sfzinstruments/aliexpress-erhu](https://github.com/sfzinstruments/aliexpress-erhu) | CC0-1.0 |
+| 箫 (xiao) | [sgossner/VCSL](https://github.com/sgossner/VCSL)（竖笛，经 XSXB-Band-Samples 加工为箫） | CC0-1.0 |
+| 唢呐 (suona) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（双簧管，经 XSXB-Band-Samples 加工为唢呐） | CC0-1.0 |
+| 埙 (xun) | [sgossner/VCSL](https://github.com/sgossner/VCSL)（陶土奥卡里那） | CC0-1.0 |
+| 木鱼 (muyu) | [sgossner/VCSL](https://github.com/sgossner/VCSL)（开槽木鼓） | CC0-1.0 |
+| 大锣 (gong) | [sgossner/VCSL](https://github.com/sgossner/VCSL) | CC0-1.0 |
+| 电子贝斯 (bass) | [freepats/electric-bass-YR](https://github.com/freepats/electric-bass-YR)（finger + pick） | CC0-1.0 |
+| 钢琴 (piano) | [freepats/upright-piano-KW](https://github.com/freepats/upright-piano-KW)（立式钢琴） | CC0-1.0 |
+| 古典吉他 (guitar) | [freepats/spanish-classical-guitar](https://github.com/freepats/spanish-classical-guitar) | CC0-1.0 |
+| 尤克里里 (ukulele) | [freepats/ukulele1](https://github.com/freepats/ukulele1) | CC0-1.0 |
+| 陶笛 (ocarina) | [freepats/ocarina1](https://github.com/freepats/ocarina1) | CC0-1.0 |
+| 管钟 (bells) | [freepats/tubular-bells1](https://github.com/freepats/tubular-bells1) | CC0-1.0 |
+| 套鼓 (kick/snare/hat/tom/cymbal/rim) | [freepats/colomboADK](https://github.com/freepats/colomboADK)（预混单声道成品 take） | CC0-1.0 |
+| 课堂打击 (clap/claves/castanets/tambourine/shaker/perc) | [freepats/world-percussion](https://github.com/freepats/world-percussion) | CC0-1.0 |
+| 定音鼓 (timpani) | [freepats/timpani](https://github.com/freepats/timpani)（D2–A3） | CC0-1.0 |
+| 手碟 (hang) | [freepats/hang-D-minor](https://github.com/freepats/hang-D-minor)（D 小调） | CC0-1.0 |
+| 电吉他 (eguitar) | [freepats/electric-guitar-FSBS-clean](https://github.com/freepats/electric-guitar-FSBS-clean)（清音） | CC0-1.0 |
+| 长笛 (flute) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（揉音持续音，《彼得与狼》小鸟） | CC0-1.0 |
+| 双簧管 (oboe) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（《彼得与狼》鸭子） | CC0-1.0 |
+| 单簧管 (clarinet) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（《彼得与狼》猫） | CC0-1.0 |
+| 巴松 (bassoon) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（《彼得与狼》爷爷） | CC0-1.0 |
+| 圆号 (horn) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（《彼得与狼》狼） | CC0-1.0 |
+| 小提琴 (violin) | [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE)（独奏，彼得本人） | CC0-1.0 |
+
+CC0-1.0（公有领域贡献）意味着这些录音可以自由用于任何用途，无需署名——上表所列来源是对原作者的致谢，而非许可要求。
+录音经重采样、音区校准与响度归一后打包进 `client/public/samples/`；清单见
+[client/public/samples/manifest.json](client/public/samples/manifest.json)，每件乐器的 `source` 字段记录其出处。
+
 ## Licence
 
 [MIT](LICENSE) © GreanTeaDawy contributors.

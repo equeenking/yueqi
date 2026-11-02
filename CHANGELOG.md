@@ -1,278 +1,167 @@
-# Changelog
+# 更新日志
 
-## 0.7.1 — ten new genre templates
+## Unreleased — 教师新手引导
 
-- Ten new genre templates, each pre-mixed with shared reverb/delay buses and (where there is a kick) kick-keyed
-  sidechain: **UK Drill** (sliding 808, 3-3-2 hats, dark piano over strings), **Afrobeats** (tresillo kick, congas,
-  highlife guitar, finger bass), **Reggaeton** (dembow, nylon-guitar arpeggios, plucked hook), **Liquid Drum & Bass**
-  (two-step at 174, reese bass, Rhodes), **Synthwave** (big-room snare, tom runs, FM bass, arp, saw lead), **Disco
-  Funk** (slap bass, muted 16th guitar, brass stabs, strings), **Neo-Soul** (lazy swung beat, Rhodes in rootless
-  voicings, organ), **Bossa Nova** (batida guitar, upright bass, clave, breathy flute), **Cinematic** (felt piano,
-  solo cello, staccato strings, taiko, a reverse swell into a tam-tam) and **Beatbox Jam** (the beatbox collection
-  with a lip bass and a hummed hook). 18 templates in all.
+- **新增六件西洋管弦采样乐器，《彼得与狼》角色全员到位**：长笛、双簧管、单簧管、巴松、圆号、独奏小提琴接入 [sgossner/VSCO-2-CE](https://github.com/sgossner/VSCO-2-CE) 真实录音（Versilian Studios，CC0-1.0），全部持续音循环 + p/f 两档力度，正对欣赏课六大角色——小鸟（长笛）、鸭子（双簧管）、猫（单簧管）、爷爷（巴松）、狼（圆号）、彼得（小提琴）。「声音」页新增「西洋管弦」分组，六件各带角色预设（如「鸭子」「狼」「爷爷」），点击即试听；「关于」对话框与 README 署名表同步更新。新管线 `scripts/fetch_vsco.py`：仓库只发 WAV 不发 SFZ，按 VSCO 系统化文件名推导映射（只取持续音 take），并实测最低/最高 take 自动校正各分轨的八度记谱差异；`build_samples.py` 通用 SFZ 收集器直接复用。**修复：采样懒加载死锁**——后台预载原来把一件乐器的全部 WAV（31–56 个）一口气同时 fetch+解码，两件并发时 70 个请求会把浏览器每主机 6 连接的队列堵死（实测卡在 5/35 永不推进），现改为每 6 个一批依次解码，加载稳定推进。**注意：长笛音色升级**——长笛采样 bank 就绪后，老工程里的长笛轨自动从合成音色切换为真实采样（bank 未加载时与离线渲染兜底仍是原合成声，工程数据不变）；其余五件为纯新增，不影响老工程。
+- **鼓组与课堂打击换真录音**：底鼓/军鼓/踩镲/通鼓/吊镲/边击六件套鼓接入 [freepats/colomboADK](https://github.com/freepats/colomboADK) 爵士鼓真实录音（预混单声道成品，力度分层，按 GM 音高锚点重采样，tune/pitch 旋钮保持可调）；拍手、响棒、响板、铃鼓、沙锤、康加鼓六件课堂打击接入 [freepats/world-percussion](https://github.com/freepats/world-percussion) 真实录音（采样未就绪时仍用原合成兜底）。康加鼓的音高旋钮改为相对映射（400＝原调），旋钮同时扫过低/中/高三只康加。
+- **新增三件采样乐器：定音鼓、手碟、电吉他（清音）**：[freepats/timpani](https://github.com/freepats/timpani)（D2–A3 两档力度）、[freepats/hang-D-minor](https://github.com/freepats/hang-D-minor)（D 小调九音，课堂即兴随手和谐）、[freepats/electric-guitar-FSBS-clean](https://github.com/freepats/electric-guitar-FSBS-clean)（清音电吉他）。三件走与二胡/木鱼相同的采样乐器路径（懒加载、离线渲染一致），「关于」对话框与 README 署名表同步更新。
+- **免费真采样批量接入（FreePats 全部 CC0）**：在已有的古筝/二胡/箫/唢呐/埙/木鱼/锣之外，一次接入 **6 件真实录音乐器**——**钢琴**（立式钢琴 KW，21–108 全音域 30 个音区）、**古典吉他**（西班牙古典吉他，31–84）、**尤克里里**（45–84）、**陶笛**（66–88，持续音循环）、**管钟**（65–86，两套力度）、**电子贝斯**重制（finger + pick 两个力度层，去掉重复 SFZ）。采样总数 163 → 300 条，全部 CC0-1.0 公有领域；「关于」对话框与 README 新增**采样来源与许可表**（逐乐器列来源/备注/许可/原链接）。新管线 `scripts/fetch_freepats.py`：GitHub tarball 一站式下载 → SFZ 解析（group/region 作用域、重复 SFZ 去重、`#`→`s` 文件名消毒）→ regions.json；`build_samples.py` 新增通用 SFZ 收集器（音区中位数投票校准、按音程抽稀控体积、长衰减封顶淡出）。
+- **采样库懒加载**：WAV 不再随 manifest 一口气全下——manifest（几十 KB）先行，乐器随后按 2 并发在后台逐件解码；某乐器还没就绪时该轨自动用物理模型合成兜底，就绪后自动切真录音；导出/离线渲染前会等待全部采样就绪，保证导出与实时播放一致。全部采样统一转 WAV（浏览器 `decodeAudioData` 不支持 FLAC），体积约 80 MB。
+- **声音页分类按课堂频率重排**：分组顺序从电子乐优先改为**小学课堂优先**——中国与东亚民乐 → 键盘（含口风琴、铝板琴）→ 吹管（含课标乐器竖笛）→ 吉他（含尤克里里）→ 鼓组 → 弦乐 → 贝斯 → 合成器 → 人声节奏 → 印度乐器 → 采样器。＋通道菜单和通道设置的类型分组同步生效。
+- **声音页改为库乐队式乐器照片墙**：每件乐器不再是一行小字，而是一张**乐器照片磁贴**——**点磁贴立即试听**（不管照片还是色块，最大的一击就出声），右上角 **＋** 加入通道架，左上角 **⌄** 展开该乐器的预设列表，右下角**放大镜**弹出放大预览卡片（大图＋乐器简介，卡片里也能试听或加入，点背景／×／Esc 关闭），拖拽进通道架的方式保留。**61 件乐器全部配上照片**，统一深炭色摄影棚＋暖色轮廓光（东亚民乐：古筝、二胡、笛子、箫、唢呐、琵琶、锣、埙、木鱼、太鼓、日本筝、三味线、尺八；课堂乐器：三角铁、碰铃、铃鼓、响板、双响筒、蛙鸣筒、口风琴、铝板琴；西方乐器：钢琴、吉他、尤克里里、长笛、竖笛、陶笛、排箫、锡笛、小提琴、贝斯；弦乐与鼓组：底鼓、军鼓、踩镲、通鼓、吊镲、牛铃、沙锤、串铃、响棒；键盘与电子：电钢琴、拉杆风琴、减法合成器、FM 合成器、808 鼓机、采样器；人声节奏五件用**拟声字磁贴**——嘴做出来的音没有实物可拍，直接印上产生该声音的音节 B／Pf／t／oo／fx 加一条电平条，比放五支麦克风更说明问题；印度乐器：西塔琴、坦布拉琴、塔布拉鼓、班苏里笛、沙赫纳伊、桑图尔琴、簧风琴），只剩插件轨仍是色块；带真录音采样的乐器在照片角上标「采样」。各分类头图也补齐为 iOS 图标风格（贝斯、合成器、人声节奏、印度乐器、采样器）。61 张照片逐张核对过与音色的对应关系，修正了 5 张不符的：长笛（原图主体过小）、电钢琴（原图画成声学立式钢琴）、底鼓（原图像落地通鼓）、沙赫纳伊（原图带按键，实际是无键木管＋金属喇叭口）、弦乐合奏（原图只有一把小提琴，改为提琴组）。
+- **逐页对照库乐队打磨操作习惯**：**播放列表**轨道头列底部新增「＋ 轨道」按钮（一次加一条，不用再「添加 4 轨」）；双击片段直接进**钢琴卷帘**编辑音符（库乐队「双击进编辑器」惯例，原来的通道架编辑移到右键菜单「编辑片段」）；片段右键菜单补「在钢琴卷帘中打开」；新增**删除轨道**（轨道 ⋯ 菜单，带确认，下面的轨道自动上移、片段随轨道删除）。**浏览器「声音」页**改为库乐队式「点名字就发声」——单击乐器名／预设名立即试听，**＋** 才是加入通道架（原「点名字加通道」对课堂演示太容易误操作，拖拽加入通道架的方式保留）。悬停提示与页面帮助同步更新。
+- **顶栏瘦身、按使用频率排序**：审查了顶栏每一个按钮——只保留课堂日常三视图（**播放列表、通道架、弹奏**）和走带控制；**钢琴卷帘、通道设置、混音台、空间混音台、连接 MIDI、设置、关于** 移入 ◆ 菜单新增的「窗口」小节（F5–F9 快捷键与轨道行按钮不变，都可再开）。中央走带按频率重排：播放→停止→录音→速度→节拍器→麦克风；右侧收敛为「片段选择→主音量→状态」，Claude 标记只在它真的在编辑时出现。窄屏收纳阈值同步放宽，三栏在任何宽度都不再拥挤。
+- **点击试听真实音色，点封面即播成品**：浏览器「声音」页新增试听——分类磁贴点击即放出该类代表乐器的真实音色（采样库已加载时用真乐器录音，未加载时合成引擎兜底）；每件乐器和每个预设旁都有 🔊 试听按钮，不用先把乐器加进通道架。「我的乐曲」封面卡片与欢迎页模板卡片：点击打开工程后自动开始播放，课堂里点一下就能听见整曲成品（首次点击会顺带解锁浏览器音频）。
+- **界面全面对标 iPad 版库乐队**：整套视觉换成 iOS 暗色风格——更深的底色、毛玻璃工具栏（三栏布局：左侧项目与窗口、中间走带控制、右侧片段/主音量/状态）、40px 大圆播放钮、iOS 系统字体栈与圆角卡片；播放头统一改为白色。**播放列表轨道头**改成库乐队式彩色乐器图标块（颜色取自轨道第一个片段，空轨道按色板取色）并加宽到 200px；**浏览器「项目」页改名「我的乐曲」**，项目列表改为封面大卡片网格（封面按曲风自动匹配，显示名称与 BPM）；浏览器各乐器分组配上生成的分类图标磁贴；**欢迎页**顶部加民族乐器实拍头图、模板卡片全部换成封面图。窄窗口下工具栏分级收纳次要控件（视觉器、打拍、按钮文字等），保证三栏从不重叠。
+- **默认免登录，打开即用**：不再需要登录或首次设置账号——打开工作室直接进入工作台（后台自动准备 teacher 账号并静默登录，老数据目录里有别的账号也不影响）。需要恢复账号登录时设环境变量 `DISABLE_AUTH=false`。
+- **课堂乐器补齐（第一批）**：对照 2022 版音乐新课标「器乐进课堂」与奥尔夫教具清单，新增 11 件课堂高频乐器，全部本地合成、零下载体积——**奥尔夫打击八件**：三角铁、碰铃、铃鼓、响板、双响筒（C4 以上嗒、低音区咚）、串铃、响棒、蛙鸣筒（刮奏长短可调）；**口风琴**（簧片气息音色，与箫/埙同一套气口旋钮）、**铝板琴**（音阶教学用，清脆金属泛音）、**尤克里里**（与吉他同一套弦模型，尼龙小琴体的明亮短音）。分别归入「鼓组 / 键盘 / 吉他」分组，每件带 2–3 个课堂预设。
+- **民乐音色真实化**：排查全部民乐乐器的「电音感」后，为合成痕迹最重的乐器接入真实录音采样（全部 CC0 公有领域，来源 VCSL）：新增**埙**（陶土气鸣采样，A4–C6 共 11 个持续音，与箫同一套气声/气口/颤音旋钮）与**木鱼**（开槽木鼓采样，D#3 高音 / A2 低音两种音高、三种力度，音高连续可变调）；**锣**由加法合成改为真实大锣录音（两件锣共六条力度层，10 秒真实余韵与泛光都录在采样里，弯音以变速实现，「类型＝钟」时仍用合成钟声）。锣的采样直接走浏览器原生音频节点，实时播放与导出零额外开销。
+- **采样清单不再被浏览器缓存卡住**：采样库 manifest 改为协商缓存（音频文件仍是不可变强缓存），后续新增乐器能在老浏览器里正常出现。
+- **新手欢迎页**：第一次进工作台自动弹出——三步上手说明（听模板 → 改音符 → 导出）、六张精选模板卡片（点卡片直接建工程）、「三分钟上手指南」入口；工具栏新增指南按钮可随时再打开，看过一次不再自动弹。
+- **新模板「民乐合奏」**（模板菜单第一项）：C 宫五声 88 BPM，古筝走句开场、二胡长句接进、笛子点亮合奏段、锣点乐段开头，底鼓与踩镲只给轻律动；预挂共享混响/延迟总线并高通非低音声部。
+- **帮助窗口重写**为教师版：四步上手、名词小词典（片段/播放列表/通道架/钢琴卷帘/混音台）、最常用快捷键；Claude/MCP 说明收进折叠区。
+- **空工作台不再只报快捷键**：改为三个引导按钮（打开播放列表 / 打开通道架 / 新手指南）。
+- **触屏可用性**（对标 iPad 库乐队）：播放列表轨道头和片段补上可见的 ⋯ 菜单按钮（触屏没有右键）；钢琴卷帘、播放列表各加「?」帮助叠层，点开即看用法说明；触屏设备（pointer: coarse）下步进格子、窗口按钮、轨道菜单等触摸目标放大到 32px 以上。
+- **新「弹奏」视图**（工具栏「弹奏」按钮）：两八度屏幕钢琴键（按住滑动可刮奏）、C 宫五声和弦条（宫商角徵羽 5 条 + 3 条低音条，按住扫过去即扫弦）、鼓垫（自动列出工程里的打击乐通道，没有可一键添加）；开录音后弹的音直接写进当前片段；「自动弹奏」一键把长和弦 / 五声琶音 / 节奏伴奏 / 低音律动写进片段并播放。
+- **一键导出**：浏览器「项目」页和弹奏视图底部新增「导出歌曲 WAV」按钮（一步出 16 位 WAV，班级电脑、投影直接放），ffmpeg 可用时另有一键「导出 MP3」（未装则置灰）；「自动弹奏」在目标是打击乐时自动转写第一个旋律乐器，五声琶音不会落进底鼓。
+- **更新日志全部中文化**：0.3.0–0.7.1 的历史条目翻译为中文，方便教师查阅。
 
-## 0.7.0 — sample library folders, wave editor, pitch correction, audio recording
+## 0.7.1 — 十个新的风格模板
 
-**Sample library** (Browser → Samples)
-- **Folders**: every sample lives in one folder or *Unfiled*. Create, rename and delete folders (deleting keeps the
-  samples), drag a sample onto a folder or use ⋯ → *Move to folder*, drop audio files on a folder to upload into it,
-  fold folders away (remembered per browser).
-- **Search** by name, folder, tags and analysis words (`kick`, `vocal 140 bpm`, `pad A minor`).
-- A ⋯ menu on every sample (sampler channel, edit, move, rename, details, analyse, delete) and a **select mode** to move
-  or delete several at once.
-- **Deleting a sample that is in use** first says which projects, channels and clips will go silent. A sample open in
-  the wave editor with edits stays there (marked deleted) so the edits can still be saved as a new sample.
-- The sampler's sample picker lists samples by folder and has an ✎ button to open the sample in the wave editor.
+- 十个新的风格模板，每个都预混好共享混响/延迟总线，有底鼓的都挂了底鼓触发侧链：**UK Drill**（滑动 808、3-3-2 踩镲、弦乐铺底的暗色钢琴）、**Afrobeats**（tresillo 底鼓、康加鼓、highlife 吉他、指弹贝斯）、**Reggaeton**（dembow 节奏、尼龙吉他琶音、拨弦钩子）、**Liquid Drum & Bass**（174 BPM two-step、reese 贝斯、Rhodes 电钢）、**Synthwave**（大房间军鼓、通鼓走句、FM 贝斯、琶音、锯齿主奏）、**Disco Funk**（拍击贝斯、闷音十六分吉他、铜管组、弦乐组）、**Neo-Soul**（慵懒摇摆、Rhodes 无根音和声、风琴）、**Bossa Nova**（巴蒂达吉他、低音提琴、clave、气声长笛）、**Cinematic**（毛毡钢琴、独奏大提琴、断奏弦乐、太鼓、接大锣的反向涌起）和 **Beatbox Jam**（beatbox 音色集 + 唇音贝斯 + 哼唱钩子）。模板总数达到 18 个。
 
-**Wave editor** (⋯ → *Edit in wave editor*)
-- Waveform with zoom, overview strip and ruler; selections that snap to zero crossings; play / loop the selection.
-- Cut, copy, paste (also between samples), delete, trim to selection, fade in/out, gain, normalise, reverse, invert,
-  silence, remove DC, trim silence, mono/stereo, **speed** (turntable, band-limited, never clips), **time stretch**
-  (WSOLA, keeps the pitch) and **pitch shift** (TD-PSOLA for voices and solo instruments below ~1 kHz, keeps formants
-  and never clips; band-limited resample + stretch for everything else). Edits that would empty a sample or make it
-  longer than 20 minutes are refused.
-- Its own undo/redo history; slow processing runs in a worker so the studio keeps playing.
-- **Save as new** keeps the original; **Replace original** overwrites the audio everywhere after a warning that lists
-  every project, channel and clip using it. Replaced samples keep their id, get a new revision, and every open studio
-  reloads them.
+## 0.7.0 — 声音库文件夹、波形编辑器、音高修正、录音
 
-**Pitch correction** (the editor's *Pitch* tab)
-- Finds the melody of a voice or solo instrument (YIN pitch tracking, note segmentation that ignores vibrato) and
-  shows the sung pitch, the notes and the corrected pitch.
-- Auto-tune to the project's key and scale (or chromatic) with **Amount**, **Speed** (0 ms = robotic … natural glides)
-  and **Flatten** (vibrato and drift), presets *Natural*, *Tight*, *Robotic*.
-- Move notes by hand: drag up/down (semitone snap, Alt/Shift fine), ↑/↓, double-click back to the scale, bypass, keep
-  as sung, octave moves, and split or join notes the detection got wrong. Preview, then Apply as one undo step and
-  save.
-- Note detection keeps a regular vibrato (3.5–8 Hz, ±0.3–1.2 semitones), scoops and falls inside their note, and
-  still separates legato singing with 20–60 ms slides between notes, wide leaps between short notes with vibrato and
-  fast runs of notes from about 100 ms, also with a jittery pitch track. A very slow, uneven wobble can come out as several notes, a semitone trill sung with slow
-  slides as one, and a short passing note right after a note with a wide vibrato can be missed: split or join them by
-  hand. Only the stretch that is corrected is
-  resynthesised (with a crossfade at each end), so the rest of the take stays bit-identical; audio that starts or ends
-  on a sung note is corrected right to its edge.
+**声音库**（浏览器 → 声音）
+- **文件夹**：每个采样属于一个文件夹或 *未归档*。可新建/重命名/删除文件夹（删除不影响采样），把采样拖到文件夹上或用 ⋯ → *移动到文件夹*，把音频文件拖到文件夹上即上传进去，文件夹可折叠（每个浏览器各自记住）。
+- **搜索**：按名称、文件夹、标签和分析词（`kick`、`vocal 140 bpm`、`pad A minor`）。
+- 每个采样都有 ⋯ 菜单（加为采样器通道、编辑、移动、重命名、详情、分析、删除），另有**多选模式**可批量移动或删除。
+- **删除使用中的采样**会先列出将受影响的工程、通道和片段。正在波形编辑器里编辑的采样被删除后仍留在编辑器（标记为已删除），编辑结果还能另存为新采样。
+- 采样器的采样选择器按文件夹分组列出，并有 ✎ 按钮可在波形编辑器中打开该采样。
 
-**Recording audio** (🎙 in the toolbar, or *Record* in the Samples tab)
-- Record from a microphone alone, or over the song or the current pattern with a count-in and metronome.
-- Latency compensation (the browser's output + input latency, plus a manual offset); echo cancellation, noise
-  suppression and auto gain are off by default.
-- Every take is saved as a WAV sample in a "Recordings" folder and, over the song, placed on the playlist on a free
-  track at the bar where recording started (the song plays on past its end instead of looping while you record). A
-  take that can't be saved (connection, upload limit) stays in the list with Retry and Download.
-- Space or the studio's Stop ends a take; recording over a pattern puts the SONG/PAT mode back afterwards. Signing out
-  or leaving the page asks first while a take is being recorded or saved, or one couldn't be saved yet.
-- Level meter with peak hold and clip warning, optional monitoring, take list with play / edit / tune / delete.
+**波形编辑器**（⋯ → *在波形编辑器中编辑*）
+- 波形带缩放、总览条和标尺；选区自动吸附过零点；可播放/循环选区。
+- 剪切、复制、粘贴（可跨采样）、删除、裁到选区、淡入/淡出、增益、标准化、反转、反相、静音、去直流、去静音、单声道/立体声、**变速**（唱针式、带宽限制、不削波）、**时间拉伸**（WSOLA，保持音高）和**变调**（对人声和 ~1 kHz 以下的独奏乐器用 TD-PSOLA，保留共振峰且不削波；其余用带宽限制重采样 + 拉伸）。会把采样清空或拉长到 20 分钟以上的编辑会被拒绝。
+- 独立的撤销/重做历史；耗时的处理在 worker 里跑，工作室照常播放。
+- **另存为新采样**保留原件；**替换原件**在列出所有使用它的工程、通道、片段并警告后全局覆盖。被替换的采样保持 id 不变、版本号 +1，所有打开的工作室自动重新加载。
+
+**音高修正**（编辑器的 *音高* 标签页）
+- 找出人声或独奏乐器的旋律（YIN 音高跟踪 + 忽略颤音的音符切分），显示唱出的音高、音符与修正后的音高。
+- 按工程的调与音阶（或半音阶）自动修音，可调 **Amount**（修正量）、**Speed**（速度，0 ms = 机械感 … 自然滑音）和 **Flatten**（压平颤音与漂移），预设 *Natural / Tight / Robotic*。
+- 也可手动移动音符：上下拖动（吸附半音，Alt/Shift 微调）、↑/↓、双击回到音阶、旁通、保留原音、八度移动，以及拆分/合并检测错的音符。先试听，再一步应用并保存。
+- 音符检测能保留规则的颤音（3.5–8 Hz、±0.3–1.2 半音），滑音和尾音归入所属音符，也能分开带 20–60 ms 滑音的连唱、短音符间的大跳（带颤音）以及约 100 ms 起的快速走句——即使音高曲线抖动。很慢且不匀的晃动可能被拆成多个音符、带慢滑音的半音颤音可能被并成一个、宽颤音音符后紧跟的短经过音可能漏检：可手动拆分或合并。只对被修正的拉伸部分重新合成（两端各一个交叉淡化），其余音频逐位不变；以唱音开始/结尾的音频会修到边缘。
+
+**录音**（工具栏 🎙，或声音标签页的 *录音*）
+- 可只录麦克风，也可随整首歌或当前片段一起录，带预备拍和节拍器。
+- 延迟补偿（浏览器输出 + 输入延迟，另有手动偏移）；回声消除、降噪、自动增益默认关闭。
+- 每次录音保存为「录音」文件夹里的 WAV 采样；随整首歌录制时，自动放到播放列表一条空轨道上、对齐开始录音的小节（录制时歌曲播完继续走而不是循环）。保存失败的录音（连接、上传限制）会留在列表里，可重试或下载。
+- 空格键或工作室的停止键结束录音；随片段录制结束后自动恢复 SONG/PAT 模式。正在录音/保存或尚有未保存的录音时，登出或离开页面会先询问。
+- 电平表带峰值保持和削波警告，可选监听，录音列表可播放/编辑/修音/删除。
 
 **Claude**
-- New tools: `sample_folders` (list/create/rename/delete), `move_samples` (a new folder name creates the folder) and
-  `edit_sample` (any of the editor's operations plus `pitch_correct` with key/scale/amount/speed/flatten, run in the
-  user's browser; saves a new sample unless asked to replace — then it lists the projects that changed). 78 tools.
-- `list_samples` groups by folder and takes `folder` and search words; `get_sample_info` shows the folder;
-  `delete_sample` takes several ids and reports what goes silent. The guide, the `use_my_samples` prompt and the
-  beat-making skill explain the vocal clean-up chain.
+- 新工具：`sample_folders`（列出/新建/重命名/删除）、`move_samples`（新文件夹名会自动建文件夹）和 `edit_sample`（编辑器的全部操作，外加带调/音阶/amount/speed/flatten 的 `pitch_correct`，在用户浏览器里执行；默认另存为新采样，要求替换时会先列出受影响的工程）。共 78 个工具。
+- `list_samples` 按文件夹分组，支持 `folder` 与搜索词；`get_sample_info` 显示文件夹；`delete_sample` 支持多个 id 并报告哪些地方会静音。指南、`use_my_samples` 提示和写歌 skill 都说明了人声清理链。
 
-**Other**
-- REST: sample folders, bulk move/delete, usage, `PUT /api/samples/:id/file`, `folderId`/`name` on upload,
-  `maxUploadMb` in `/api/status`. Uploads and replacements must contain playable audio (checked before anything is
-  written: also a header that promises audio the file doesn't have — FLAC, MP3, AIFF, WAV — is refused); sample and folder names are cleaned (Unicode NFC, no control or invisible format characters, at least one
-  visible character, joiners only between visible characters, bounded size) and a joiner or a different case doesn't
-  make a folder name new; a browser analysis of audio that was replaced meanwhile is refused (409).
-- `Permissions-Policy` header: the microphone for the studio page only; no camera, location, payment, USB, serial, HID.
-- The toolbar fits one row at 1440 px again with the new 🎙 button (slightly narrower scope display); on phones it never
-  makes the page scroll sideways (below 400 px the song position is left to the playlist).
-- Clicking another window (or the empty workspace) takes the keyboard along: Space and Ctrl+Z no longer stay with a
-  control in the window you left; a click on the wave editor's or the recorder's title bar gives them the keys back.
+**其他**
+- REST：采样文件夹、批量移动/删除、用量、`PUT /api/samples/:id/file`、上传时的 `folderId`/`name`、`/api/status` 的 `maxUploadMb`。上传和替换必须包含可播放的音频（写入前就检查：连声称有音频的头而实际没有的 FLAC、MP3、AIFF、WAV 也会被拒）；采样与文件夹名会被清理（Unicode NFC、不含控制符/不可见格式字符、至少一个可见字符、连接符只能夹在可见字符之间、长度有限）且连接符或大小写不同不算新名字；对已被替换的音频发起的浏览器端分析会被拒绝（409）。
+- `Permissions-Policy` 头：仅工作室页面允许麦克风；摄像头、定位、支付、USB、串口、HID 全部禁用。
+- 新增 🎙 按钮后工具栏在 1440 px 仍是一行（走带显示稍窄）；手机上工具栏不再把页面撑出横向滚动（400 px 以下歌曲位置交给播放列表显示）。
+- 点击别的窗口（或空白工作区）会带走键盘焦点：空格和 Ctrl+Z 不会再留在离开的窗口控件里；点击波形编辑器或录音机的标题栏会把焦点还给它们。
 
-## 0.6.1 — About dialog
+## 0.6.1 — 关于对话框
 
-- **About** (ⓘ at the top right of the toolbar, or ◆ → *About GreanTeaDawy…*): a dialog box with the app name and
-  version, the server's version (with a hint to reload when the open tab runs an older build), the built-in sounds and
-  the licence. The version comes from `client/package.json` at build time.
-- Wording: the studio, README, docs and skills no longer describe GreanTeaDawy in terms of another DAW; only the MCP
-  introduction Claude reads keeps that comparison. The subtractive synth is labelled *Subtractive Synth* (the
-  instrument kind is still `synth`, so projects and Claude's calls are unchanged).
-- Dialogs: one at a time — a dialog opened over another answers the first with "cancel" instead of leaving it
-  waiting — and focus goes back to the button that opened them. On phones the toolbar's small buttons are 28 px.
+- **关于**（工具栏右上 ⓘ，或 ◆ → *关于 GreanTeaDawy…*）：显示应用名与版本、服务器版本（打开的标签页若运行旧构建会提示刷新）、内置音色与许可证。版本号在构建时取自 `client/package.json`。
+- 措辞：工作室、README、文档和 skill 不再用别的 DAW 来描述 GreanTeaDawy；只有 Claude 读的 MCP 介绍保留那一处对比。减法合成器更名为 *Subtractive Synth*（乐器 kind 仍是 `synth`，工程与 Claude 调用不受影响）。
+- 对话框：一次只弹一个——叠开时后开的会替前一个回答「取消」而不是让它干等；关闭后焦点回到打开它的按钮。手机上工具栏小按钮为 28 px。
 
-## 0.6.0 — flute, beatbox, Indian and East Asian collections; selection and window fixes
+## 0.6.0 — 长笛、beatbox、印度与东亚音色集；选择与窗口修复
 
-**New instrument collections** (Browser sections *Flutes*, *Beatbox*, *Indian*, *East Asian*; 27 instruments, 106
-presets; `list_instruments category=…` for Claude)
-- **Flutes**: Flute (Concert, Breathy, Lo-fi, Trap, Alto, Piccolo), Pan Flute, Recorder, Tin Whistle, Ocarina — one
-  breath engine (per-kind harmonic recipe, pitched breath noise, tongued chiff, attack scoop, delayed vibrato,
-  velocity overblowing, mono slurs).
-- **Beatbox**: mouth Kick ("B" lip burst), Snare (Pf, Psh spit, inward K, Kch), Hat (t, ts, inward, tch), Bass (lip /
-  throat buzz through "oo/oh/ah/mm" vowel formants, growl, wobble) and FX (click roll, vocal scratch, laser zap,
-  siren).
-- **Indian**: modelled **sitar** (jawari bridge buzz that lasts the whole note, sympathetic strings tuned to the
-  major scale of *Sa*, meend via mono glide), **tanpura** (blooming jawari drone), **tabla** (bols na, tin, tun, te,
-  ge, ke, dha, dhin; palm-glide bend on ge), **bansuri**, **shehnai**, modelled **santoor** (mallet-struck courses
-  that beat and ring) and **harmonium** (bass/male/female reed banks, shared bellows pulse).
-- **East Asian**: modelled **koto**, **guzheng**, **pipa** and **shamisen** (bachi skin "thwack" and sawari),
-  **erhu**, **shakuhachi**, **dizi** (membrane buzz), **suona**, **taiko** (odaiko, chudaiko, shime, kara) and
-  **gong** (tam-tam bloom, opera gongs that bend down/up, temple bell).
-- The world strings are physical models rendered in the background workers like the guitar. Their Karplus–Strong
-  loop holds the requested T60 on high notes too and is tuned with exact phase delays (±2 cents up to C7).
-- New templates **Indian Fusion** (keherwa theka, tanpura, sitar alap with meend, harmonium, bansuri) and
-  **East Asian Lo-fi** (koto in D hirajoshi, shakuhachi, taiko, temple bell). The tabla follows a template's key.
-- New scales: hirajoshi, inSen, iwato, yo, and the thaats bhairav, todi, purvi, marwa. Pentatonics take their chords
-  and spelling from the 7-note scale that contains them; `music_theory diatonic_chords` explains that a thaat is
-  played over a drone instead of returning misleading triads.
-- **+ Channel** is now collection → instrument → preset; the channel settings *Type* list is grouped by collection.
-- Levels: every new sound was measured with `analyze_sound` against the existing ones (sustained leads ≈ −21 LUFS
-  for a held C5, plucked models −23…−27, beatbox kick ≈ −18, snares ≈ −22).
+**新乐器音色集**（浏览器的 *长笛 / Beatbox / 印度 / 东亚* 分区；27 件乐器、106 个预设；Claude 可用 `list_instruments category=…`）
+- **长笛**：长笛（音乐会、气声、Lo-fi、Trap、中音、短笛）、排箫、竖笛、锡哨、陶笛——同一个气息引擎（按乐器配谐波配方、有音高的气息噪声、吐音起音、起音上滑、延迟颤音、力度超吹、单音连奏）。
+- **Beatbox**：嘴式底鼓（"B" 唇爆）、军鼓（Pf、Psh 唾音、内吸 K、Kch）、镲（t、ts、内吸、tch）、贝斯（经 "oo/oh/ah/mm" 元音共振峰的唇/喉嗡鸣，含 growl 与 wobble）和 FX（点击滚奏、人声刮擦、激光、警笛）。
+- **印度**：建模 **sitar**（整音持续的 jawari 桥嗡鸣、按 *Sa* 大调调音的共鸣弦、单音滑音实现 meend）、**tanpura**（绽放式 jawari 持续音）、**tabla**（bols：na、tin、tun、te、ge、ke、dha、dhin；ge 带掌滑弯音）、**bansuri**、**shehnai**、建模 **santoor**（琴槌敲击的弦列拍频与延音）和 **harmonium**（低音/男声/女声簧片组、共享风箱脉动）。
+- **东亚**：建模 **koto**、**guzheng**、**pipa** 和 **shamisen**（琴拨击皮的「啪」声与 sawari）、**erhu**、**shakuhachi**、**dizi**（膜鸣嗡音）、**suona**、**taiko**（odaiko、chudaiko、shime、kara）和 **gong**（大锣绽放、可下滑/上滑的歌剧锣、寺庙钟）。
+- 世界弹拨弦乐与吉他一样由后台 worker 渲染物理模型。Karplus–Strong 环路在高音区也保持目标 T60，并用精确相位延迟调音（到 C7 误差 ±2 音分）。
+- 新模板 **Indian Fusion**（keherwa theka、tanpura、带 meend 的 sitar alap、harmonium、bansuri）和 **East Asian Lo-fi**（D 平调子 hirajoshi 的 koto、shakuhachi、taiko、寺庙钟）。tabla 跟随模板的调。
+- 新音阶：hirajoshi、inSen、iwato、yo，以及 thaats 的 bhairav、todi、purvi、marwa。五声音阶的和弦与记谱取自包含它的七声音阶；`music_theory diatonic_chords` 会说明 thaat 要在持续音上演奏，而不是返回误导性的三和弦。
+- **+ 通道**改为 音色集 → 乐器 → 预设 三级；通道设置的 *类型* 列表按音色集分组。
+- 音量：每件新音色都用 `analyze_sound` 对照既有音色实测（持续主奏 C5 长音 ≈ −21 LUFS，拨弦模型 −23…−27，beatbox 底鼓 ≈ −18，军鼓 ≈ −22）。
 
-**Also new**
-- `write_melody` (and melody strings everywhere): a `~` after a note's length slides into the next note — meend,
-  slurs and bends on mono instruments with glide (`"C4:4~ Db4:2"`). The note overlaps the next by up to half a step,
-  like bass-line slides, so swing can't open a gap. A length with junk after it (`"C4:4x"`) is now refused instead of
-  silently read as 4.
-- `add_transition reverse_swell` plays the tonic chord of the project's scale (sus2/sus4 for scales without a third,
-  the scale's own fifth for locrian and iwato) instead of guessing minor/major from the scale's name.
-- Roman numerals in the thaats are spelled like the scale (D bhairav's II = Eb).
+**其他新功能**
+- `write_melody`（以及所有地方的旋律字符串）：音符时长后加 `~` 表示滑向下一音——单音滑奏乐器上的 meend、连奏与弯音（`"C4:4~ Db4:2"`）。音符最多与下一音重叠半步（像贝斯滑音），摇摆律动也不会拉开缺口。时长后面跟着无效字符（`"C4:4x"`）现在会被拒绝，而不是默默当作 4。
+- `add_transition reverse_swell` 播放工程音阶的主和弦（无三音的音阶用 sus2/sus4，locrian 与 iwato 用音阶自身的五音），不再按音阶名字猜大小三。
+- Thaat 的罗马数字按音阶本身拼写（D bhairav 的 II = Eb）。
 
-**Fixes**
-- A **velocity-0 note** (allowed by MCP and imports) no longer throws inside the clap, cowbell or click-roll
-  envelopes; any note the Web Audio API refuses is now dropped on its own instead of making the scheduler retry the
-  same range and stack the other notes on top of each other.
-- **Selecting a playlist clip shrank it** (it looked collapsed): the dropdown control's CSS class was `.sel`, the
-  same class that marks selected clips, notes, velocity bars and spatial rows, so a selected clip was capped at
-  180 px and padded (long selected notes in the piano roll too). Dropdowns are now `.ui-select`.
-- **Windows didn't move when dragged by the middle of the title bar**: the toolbar strip swallowed the pointer. The
-  whole bar drags now, except its real controls; the drag numbers (BPM, Steps) are marked as controls and gained
-  arrow-key support.
-- QA round on the new instruments: the siren's wobble stops with the note (live notes leaked a running oscillator);
-  the scratch and zap sweeps start at the note (offline renders swept early); slurred flute/reed/erhu notes carry
-  their vibrato on (in phase) instead of restarting it; high world-string notes (from about A#5–G6 up,
-  depending on sustain) now ring for the sustain they ask for, and C7–C8 no longer click;
-  the Indian Fusion template retunes the sitar's sympathetic strings (`sa`) and the tabla to the chosen key;
-  `list_instruments` with both `kind` and `category` shows the instrument.
+**修复**
+- **力度为 0 的音符**（MCP 与导入允许）不再在拍手、牛铃或点击滚奏包络里抛错；Web Audio API 拒绝的音符现在直接丢弃，不再让调度器反复重试同一段并叠加其他音符。
+- **选中播放列表片段会把它压扁**（看起来像折叠了）：下拉控件的 CSS 类 `.sel` 与标记选中片段、音符、力度条、空间行的类同名，选中片段被限到 180 px 并加了内边距（钢琴卷帘里选中的长音符同样中招）。下拉控件改用 `.ui-select`。
+- **按住标题栏中段拖不动窗口**：工具栏条吞掉了指针事件。现在整条都能拖，真正的控件除外；拖动数字（BPM、步数）标记为控件并加了方向键支持。
+- 新乐器 QA 轮：警笛的 wobble 随音符停止（实时音符泄漏了一个持续振荡器）；刮擦与激光的扫频从音符起点开始（离线渲染提前扫了）；连奏的长笛/簧片/二胡音符颤音连续衔接（同相）而不是重启；高音区世界弦乐（约 A#5–G6 起，视延音而定）能按要求的时长延音，C7–C8 不再咔哒；Indian Fusion 模板会把 sitar 共鸣弦（`sa`）和 tabla 调到所选调；`list_instruments` 同时给 `kind` 和 `category` 时能正确显示乐器。
 
-## 0.5.0 — band instruments, spatial audio, ffmpeg export, plugins, Docker
+## 0.5.0 — 乐队乐器、空间音频、ffmpeg 导出、插件、Docker
 
-**New instruments (GarageBand-style band)**
-- **Grand Piano** (`piano`): modelled — inharmonic partials, hammer hardness and spectrum follow velocity, prompt +
-  aftersound decay, beating unison strings, no dampers above G6. Presets Grand, Bright, Upright, Felt, Honky Tonk.
-- **Electric Piano** (`epiano`): FM tine or reed model with bark, bell and tremolo that stays in phase across notes.
-  Presets Suitcase, Mellow, Bright Tines, Tremolo, Wurli.
-- **Drawbar Organ** (`organ`): nine drawbars, percussion, key click, overdrive, slow/fast rotary. Presets Jazz, Gospel,
-  Rock, Soft, Church.
-- **Guitar** (`guitar`): Karplus–Strong string with fractional-delay tuning, acoustic/nylon/electric body, pluck
-  point, palm mute, amp drive. Presets Acoustic, Nylon, Clean Electric, Muted, Overdrive.
-- **Bass Guitar** (`bass`): finger, pick, slap, upright; pickup comb, mono glide. Presets Finger, Pick, Slap, Muted,
-  Upright.
-- **String Ensemble** (`strings`): 1–8 players, delayed vibrato, legato/staccato/pizzicato. Presets Ensemble, Slow
-  Strings, Solo Cello, Solo Violin, Staccato, Pizzicato.
-- Physical-model notes are rendered per pitch and velocity layer in background Web Workers (prewarmed from the
-  project's notes, cached with an LRU budget that spares the open project's notes); offline renders wait for the
-  prewarm, playback doesn't have to. A live note that isn't rendered yet plays a rendered neighbour (within a fifth)
-  repitched while it renders, and selecting or playing a modelled channel prewarms the octave around it — only a
-  note with no neighbour at all is rendered on the spot.
-- New **Pop Band** template (piano, bass guitar, acoustic guitar, strings, drums).
-- The FM synth now blocks the DC offset that integer ratios produce (inaudible, but it skewed meters).
+**新乐器（库乐队式乐队）**
+- **三角钢琴**（`piano`）：建模——非谐分音、击弦硬度与频谱随力度、即时音 + 余音衰减、同音弦拍频、G6 以上无制音。预设 Grand、Bright、Upright、Felt、Honky Tonk。
+- **电钢琴**（`epiano`）：FM 音爪/簧片模型，bark、bell 与颤音跨音符同相。预设 Suitcase、Mellow、Bright Tines、Tremolo、Wurli。
+- **拉杆风琴**（`organ`）：九根拉杆、打击音、按键咔哒、过载、慢/快旋转喇叭。预设 Jazz、Gospel、Rock、Soft、Church。
+- **吉他**（`guitar`）：分数延迟调音的 Karplus–Strong 弦，原声/尼龙/电吉他箱体、拨弦点、掌闷、音箱驱动。预设 Acoustic、Nylon、Clean Electric、Muted、Overdrive。
+- **贝斯吉他**（`bass`）：指弹、拨片、slap、低音提琴；拾音器梳状滤波、单音滑音。预设 Finger、Pick、Slap、Muted、Upright。
+- **弦乐组**（`strings`）：1–8 人，延迟颤音，legato/staccato/pizzicato。预设 Ensemble、Slow Strings、Solo Cello、Solo Violin、Staccato、Pizzicato。
+- 物理模型音符按音高 × 力度分层在后台 Web Worker 渲染（从工程音符预热，按 LRU 预算缓存且豁免打开工程的音符）；离线渲染会等预热完成，播放不必等。尚未渲染完的实时音符会临时播放五度内已渲染的邻近音（改调播放），选中或播放建模通道会预热其周围一个八度——只有完全无邻居可借的音符才现场渲染。
+- 新模板 **Pop Band**（钢琴、贝斯吉他、原声吉他、弦乐、鼓）。
+- FM 合成器现在会阻隔整数比率产生的直流偏移（听不见，但会干扰电平表）。
 
-**Spatial (Dolby Atmos-style) mixing**
-- Mixer inserts can be **3D objects** (x/y/height + LFE send) around and above the listener; the rest is the stereo
-  bed. Project setting: spatial mix on/off and monitoring (stereo fold-down or **binaural** HRTF on headphones).
-- New **Spatial window** (toolbar cube): room view with draggable objects, height/LFE knobs, quick positions, speaker
-  layout; mixer strips show **3D** for objects; right-click → *Make 3D object…*.
-- Position automation (`spatialX/Y/Z` of an insert) — objects move over time; after a clip they stay put.
-- Exports (48 kHz / 24-bit): **binaural**, **5.1**, **7.1**, **7.1.4** (WAVE_FORMAT_EXTENSIBLE with channel masks;
-  constant-power pairwise panning + height crossfade; room positions map onto the layout like an object renderer:
-  front corners = L/R, sides = side surrounds, rear corners = rear surrounds), **object stems** + positions JSON, and an experimental
-  **ADM BWF** (bext + chna + axml, ITU-R BS.2076 timed Cartesian positions; not Dolby-certified).
-- MCP: `set_spatial`, `place_object`, `move_object`, `export_spatial`, prompt `spatial_mix`; `get_project` shows
-  objects. Binaural monitoring/export is level-matched to the stereo mix (−3.5 dB HRTF trim on objects); ADM
-  blocks glide between positions sampled every 32nd note (holds use `jumpPosition`) and cover the render's tail; exports that would exceed the 4 GB WAV
-  limit are refused before rendering, and render uploads may now be up to 4 GB. Core: `encodeWav` writes multichannel/extensible WAVs with extra chunks and pads odd data sizes.
+**空间音频（杜比全景声式混音）**
+- 混音台插入可以是**3D 对象**（x/y/高度 + LFE 发送），布置在听众四周与头顶；其余仍是立体声底。工程设置：空间混音开关与监听方式（立体声折叠或耳机**双耳** HRTF）。
+- 新**空间混音台窗口**（工具栏立方体）：房间视图可拖动物体、高度/LFE 旋钮、快捷方位、扬声器布局；对象通道条显示 **3D**；右键 → *设为 3D 对象…*。
+- 位置自动化（插入的 `spatialX/Y/Z`）——物体随时间移动，片段结束后停在原地。
+- 导出（48 kHz / 24-bit）：**双耳**、**5.1**、**7.1**、**7.1.4**（WAVE_FORMAT_EXTENSIBLE 带声道掩码；等功率成对声像 + 高度交叉淡化；房间位置按对象渲染器的方式映射到布局：前角 = L/R、侧边 = 侧环绕、后角 = 后环绕）、**对象分轨** + 位置 JSON，以及实验性的 **ADM BWF**（bext + chna + axml，按 ITU-R BS.2076 的计时笛卡尔坐标；未经杜比认证）。
+- MCP：`set_spatial`、`place_object`、`move_object`、`export_spatial`，提示 `spatial_mix`；`get_project` 显示对象。双耳监听/导出与立体声混响电平对齐（对象 −3.5 dB HRTF 修剪）；ADM 对滑动位置按每 32 分音符采样（静止用 `jumpPosition`）并覆盖渲染尾音；会超出 4 GB WAV 限制的导出在渲染前就被拒绝，渲染上传上限提高到 4 GB。核心库：`encodeWav` 支持多声道/扩展 WAV、附加块、奇数字节补齐。
 
 **Docker**
-- Image with ffmpeg, a non-root user, `tini` and a health check; `docker-compose.yml` with a read-only root
-  filesystem, dropped capabilities, memory limit, localhost-only port and an optional Caddy HTTPS profile
-  (`deploy/Caddyfile`); `docs/docker.md` (configuration, HTTPS, backups, upgrades, password reset, troubleshooting).
-- `/api/health` answers to any Host name (container health checks) — every other route still checks `ALLOWED_HOSTS`.
-- The startup banner shows `PUBLIC_URL` when it is set.
+- 镜像带 ffmpeg、非 root 用户、`tini` 和健康检查；`docker-compose.yml` 含只读根文件系统、去能力、内存限制、仅本机端口和可选的 Caddy HTTPS 配置（`deploy/Caddyfile`）；`docs/docker.md`（配置、HTTPS、备份、升级、重置密码、排障）。
+- `/api/health` 接受任意 Host（容器健康检查）——其余路由仍检查 `ALLOWED_HOSTS`。
+- 启动横幅在设置 `PUBLIC_URL` 时显示它。
 
-**Export formats (ffmpeg)**
-- File → **Export song as…** MP3, AAC (.m4a), Ogg Vorbis, Opus, FLAC, Apple Lossless (.m4a) and AIFF (bitrate choice
-  for lossy formats, 24-bit lossless, title/artist tags): rendered in the browser, converted by ffmpeg on the server.
-- **Settings → Audio export** shows whether ffmpeg is installed (version, encoders, every format's status); admins can
-  re-check. `FFMPEG_PATH`, `FFMPEG_TIMEOUT_SEC`, `FFMPEG_MAX_JOBS`.
-- MCP: `list_export_formats` (what can be exported here, bitrates) and `export_audio` (render + convert, returns the URL).
-- REST: `GET /api/exports/formats`, `GET /api/system/ffmpeg`, `POST /api/system/ffmpeg/refresh` (admin),
-  `POST /api/exports/:name/convert`. Exports lists and downloads now include the new formats.
-- Hardening: only PCM/float WAVs are converted, with the PCM decoder forced; per-format channel limits with a clear
-  message (MP3 stereo, Ogg ≤ 6, Apple Lossless ≤ 7, AAC/Opus/FLAC ≤ 8 channels; lossy formats need speaker
-  positions, so ADM/object renders convert to lossless only); conversion failures and timeouts are reported (422/504)
-  instead of "Server error"; at most 3 conversions per user queued, output names reserved only when a conversion
-  starts; invalid numeric environment values fall back to their defaults.
+**导出格式（ffmpeg）**
+- 文件 → **歌曲导出为…**：MP3、AAC（.m4a）、Ogg Vorbis、Opus、FLAC、Apple Lossless（.m4a）与 AIFF（有损可选码率，无损 24-bit，标题/艺术家标签）：浏览器渲染，服务器上由 ffmpeg 转换。
+- **设置 → 音频导出** 显示 ffmpeg 是否可用（版本、编码器、各格式状态）；管理员可重新检测。`FFMPEG_PATH`、`FFMPEG_TIMEOUT_SEC`、`FFMPEG_MAX_JOBS`。
+- MCP：`list_export_formats`（此处能导什么、可选码率）与 `export_audio`（渲染 + 转换，返回 URL）。
+- REST：`GET /api/exports/formats`、`GET /api/system/ffmpeg`、`POST /api/system/ffmpeg/refresh`（管理员）、`POST /api/exports/:name/convert`。导出列表与下载均包含新格式。
+- 加固：只转换 PCM/浮点 WAV 并强制 PCM 解码器；按格式限制声道数并给出明确提示（MP3 立体声、Ogg ≤ 6、Apple Lossless ≤ 7、AAC/Opus/FLAC ≤ 8 声道；有损格式需要扬声器位置，ADM/对象渲染只转无损）；转换失败与超时会明确报错（422/504）而不是笼统的「服务器错误」；每用户最多排队 3 个转换，输出名只在转换开始时占用；非法数字环境变量回落默认值。
 
-**Plugins (your own instruments, effects and note generators)**
-- Plugins are `.zip` packages with a `plugin.json` manifest: **DSP instruments** and **effects** (one JavaScript file
-  run in the browser's AudioWorklet through a generated harness), **sample instruments** (multisampled key/velocity
-  zones, no code) and **generators** (write notes into a pattern; run in a sandboxed, network-less iframe worker with a
-  2 s limit). Five MIT examples in `plugins/examples` (Chiptune, Kalimba, Tape Wobble, Euclidean Rhythms, Counter
-  Melody); `npm run plugin:pack` validates and zips a plugin folder. Guide: `docs/plugins.md`.
-- **Settings → Plugins**: install with a review dialog (author, type, permissions, files, SHA-256) and a trust warning
-  that must be confirmed; updates, enable/disable, remove, plugin errors. Plugins are per user; admins can turn them off
-  (Settings → Server → *Allow plugins*, or `PLUGINS_ENABLED=false`). Open studios pick up installs, updates and the
-  admin switch without a reload.
-- Instrument plugins in the Browser and Channel settings, effect plugins in every insert (automatable params can be
-  automated), **Generate** window (piano roll → *Gen*).
-- Explicit permissions (`audio-processing`, `samples`, `generator`, `project-read`); network, storage, files, account
-  and similar are never granted. Hardened zip reader; code may not `import`/`importScripts`; DSP output is cleaned
-  (NaN/∞/runaway values), crashing effects are bypassed, voices are capped by the manifest's polyphony and end ≤ 10 s
-  after note-off; generated notes are validated and clamped. Projects that use a missing or disabled plugin still open
-  (silent channel, pass-through effect, settings kept). Details in `docs/security.md#plugins`.
-- MCP: `list_plugins`, `run_generator`; `add_channel`/`update_channel` and `add_effect`/`update_effect` take plugins
-  with validated params. Claude can't install plugins (API tokens get 403 on install).
-- REST: `/api/plugins` (list, inspect, install with `trust: true`, enable/disable, remove, worklet/code/samples),
-  `/sandbox/generator.html`; WebSocket hint `plugins-changed`; browser job kind `generator`.
+**插件（你自己的乐器、效果与音符生成器）**
+- 插件是带 `plugin.json` 清单的 `.zip` 包：**DSP 乐器**与**效果**（一个 JavaScript 文件经生成的 harness 在浏览器 AudioWorklet 运行）、**采样乐器**（多采样键位/力度分区，无代码）和**生成器**（向片段写音符；在无网络的沙箱 iframe worker 里运行，限 2 s）。`plugins/examples` 内有五个 MIT 示例（Chiptune、Kalimba、Tape Wobble、Euclidean Rhythms、Counter Melody）；`npm run plugin:pack` 校验并打包插件文件夹。指南见 `docs/plugins.md`。
+- **设置 → 插件**：安装时弹出审阅对话框（作者、类型、权限、文件、SHA-256）和必须确认的信任警告；支持更新、启停、卸载、插件错误显示。插件按用户隔离；管理员可整体关闭（设置 → 服务器 → *允许插件*，或 `PLUGINS_ENABLED=false`）。打开中的工作室不刷新即可感知安装、更新与管理员开关。
+- 乐器插件出现在浏览器和通道设置里，效果插件出现在每个插入槽（可自动化参数可被自动化），**生成**窗口（钢琴卷帘 → *Gen*）。
+- 显式权限（`audio-processing`、`samples`、`generator`、`project-read`）；网络、存储、文件、账号等永不授予。加固的 zip 读取器；代码不得 `import`/`importScripts`；DSP 输出会被清洗（NaN/∞/失控值），崩溃的效果自动旁路，声部数以清单 polyphony 为上限且在松键 ≤ 10 s 内结束；生成的音符经过校验和限幅。使用缺失或被禁插件的工程仍能打开（通道静音、效果直通、设置保留）。详见 `docs/security.md#plugins`。
+- MCP：`list_plugins`、`run_generator`；`add_channel`/`update_channel` 与 `add_effect`/`update_effect` 接受带参数校验的插件。Claude 不能安装插件（API token 安装时得到 403）。
+- REST：`/api/plugins`（列表、查看、以 `trust: true` 安装、启停、卸载、worklet/代码/采样）、`/sandbox/generator.html`；WebSocket 提示 `plugins-changed`；浏览器任务类型 `generator`。
 
 **Skills**
-- `skills/`: music-production skills for Claude Desktop / claude.ai / Claude Code users — `greanteadawy-beatmaking`
-  (workflow + genre recipes and sound palette), `greanteadawy-arranging`, `greanteadawy-mixing` (mixing by the
-  numbers with `render_mix`, report → fix table), `greanteadawy-spatial-mix` and `greanteadawy-plugin-author` (plugin
-  templates and a Python packer that ports the studio's install checks). `npm run skills:pack` checks them and writes
-  uploadable zips to `skills/dist/`.
-- Developer skills in `.claude/skills/`: `spatial-audio`, `plugin-system` (the security invariants), `write-plugin`,
-  `export-formats`.
+- `skills/`：面向 Claude Desktop / claude.ai / Claude Code 用户的音乐制作 skill——`greanteadawy-beatmaking`（工作流 + 风格配方与音色调板）、`greanteadawy-arranging`、`greanteadawy-mixing`（用 `render_mix` 按数字混音，报告 → 修复表）、`greanteadawy-spatial-mix` 和 `greanteadawy-plugin-author`（插件模板与移植安装检查的 Python 打包器）。`npm run skills:pack` 校验并在 `skills/dist/` 生成可上传的 zip。
+- 开发者 skill 在 `.claude/skills/`：`spatial-audio`、`plugin-system`（安全不变量）、`write-plugin`、`export-formats`。
 
-## 0.4.0 — production & sound quality (music-industry review)
+## 0.4.0 — 制作与音质（音乐行业评审）
 
-**Sound — existing songs will sound a little different**
-- Velocity now follows a squared curve (1.0 = 0 dB, 0.8 = −3.9 dB, 0.45 = −14 dB) and softer notes are darker. Notes at
-  the default velocity are about 2 dB quieter than before; ghost notes are much quieter (as intended).
-- The master limiter now really reaches its ceiling: its compressor's automatic makeup is removed exactly (replicating
-  the browser's algorithm), its threshold sits 1.5 dB under the ceiling and an oversampled soft clip takes the last bit.
-  Driven masters come out ~1.5–2.5 dB louder at the same settings (new projects another ~1.9 dB from the 0 dB master
-  fader); new projects get a −1 dB ceiling. Every effect parameter now starts at its value instead of gliding into it
-  at the start of playback/renders.
-- **Compressor**: the browser's hidden automatic makeup gain (≈ +7 dB at the defaults) is removed — the Makeup knob is
-  the only makeup now. Songs that use a compressor get quieter on that insert; raise Makeup to taste.
-- New projects have the master fader at 0 dB (it sits after the limiter); existing projects keep theirs.
-- Reverb rooms are generated anew (early reflections, highs decaying faster, independent left/right); the convolver
-  normalizes their level. The reverb's damping/low-cut and the delay's tone filter are now flat Butterworth filters
-  (before, a ~1 dB-Q bump coloured them slightly), and the delay repeats are high-passed at 120 Hz.
-- The sampler fades the last 4 ms of a (trimmed) sample, and audio clips get 3 ms edge ramps, so cuts no longer click.
-- `render_mix` ignores solos left on in the studio (Claude always hears the whole mix).
+**声音——现有歌曲听感会略有变化**
+- 力度改用平方曲线（1.0 = 0 dB，0.8 = −3.9 dB，0.45 = −14 dB），弱音更暗。默认力度的音符比原来轻约 2 dB；幽灵音符轻得多（符合预期）。
+- 母带限制器真正顶到天花板：精确移除其压缩器的自动补偿（与浏览器算法一致），阈值低于天花板 1.5 dB，再由过采样软削波收尾。同样设置下被推起来的母带响 ~1.5–2.5 dB（新工程因 0 dB 母带推子再响 ~1.9 dB）；新工程天花板为 −1 dB。所有效果参数现在直接从设定值开始，不再在播放/渲染开始时滑入。
+- **压缩器**：移除浏览器隐藏的自动补偿增益（默认约 +7 dB）——Makeup 旋钮是唯一补偿。用了压缩器的歌曲在该插入上会变轻；按口味调高 Makeup 即可。
+- 新工程母带推子默认 0 dB（位于限制器之后）；已有工程保持不变。
+- 混响房间重新生成（早期反射、高频衰减更快、左右独立）；卷积器对其电平归一。混响的 damping/低切与延迟的音色滤波改为平坦的 Butterworth（此前 ~1 dB 的 Q 峰略微染色），延迟重复在 120 Hz 以上高通。
+- 采样器对（裁剪过的）采样末尾做 4 ms 淡出，音频片段边缘加 3 ms 斜坡，剪切不再咔哒。
+- `render_mix` 忽略工作室里遗留的独奏（Claude 听到的始终是完整混音）。
 
-**New**
-- Kick-triggered sidechain (`pump` with a trigger channel), EQ high/low-pass, parallel compression (`mix`), stereo
-  `monoBelow`, reverb `size`, delay repeats high-passed.
-- Per-channel groove (nudge in ms, swing share); swing follows slightly off-grid notes.
-- Markers above the playlist; audio clip gain, fades and repitch-to-tempo; sampler trim, sustain loop and cutoff.
-- 24-bit and dithered 16-bit WAV export, stem export (File menu and `export_stems`).
-- MCP: `apply_groove`, `add_fill`, `add_transition`, `set_markers`, `analyze_sound`, `export_stems`; voicings and register
-  for `add_chords`; degree bass lines with slides for `add_bassline`; `render_mix` targets, true peak, loudness range,
-  limiter gain reduction, low-end note and width; gain/fade/repitch options for audio clips; a guide with mixing numbers.
-- Presets: Lo-fi Keys, Strings, Riser Noise, Reverse Swell (subtractive synth), Felt Piano (FM), Sub Drop (808), Trap kick (short,
-  above the 808). Templates use shared reverb/delay buses, high-passes and kick sidechain; the stereo shaper defaults to
-  width 1.
-- Groove presets humanize in milliseconds (a few ms, not tens), keep accented hats at normal velocities so presets can
-  be re-applied, and write ghost snares at 0.4; the guide explains swing vs MPC percentages, sidechain depths per
-  role and a drum-bus recipe.
+**新增**
+- 底鼓触发侧链（`pump` 可选触发通道）、EQ 高/低通、并联压缩（`mix`）、立体声 `monoBelow`、混响 `size`、延迟重复高通。
+- 每通道律动（毫秒推挤、摇摆占比）；摇摆会跟随略微偏网的音符。
+- 播放列表上方的标记；音频片段增益、淡化与变速对齐；采样器裁剪、延音循环与截止。
+- 24-bit 与加抖动的 16-bit WAV 导出、分轨导出（文件菜单与 `export_stems`）。
+- MCP：`apply_groove`、`add_fill`、`add_transition`、`set_markers`、`analyze_sound`、`export_stems`；`add_chords` 的声位与音区；`add_bassline` 的带滑音级进贝斯；`render_mix` 的目标、真峰、响度范围、限制器增益衰减、低频音符与宽度；音频片段的增益/淡化/变速选项；附带混音数字指南。
+- 预设：Lo-fi Keys、Strings、Riser Noise、Reverse Swell（减法合成器）、Felt Piano（FM）、Sub Drop（808）、Trap 底鼓（短、在 808 之上）。模板使用共享混响/延迟总线、高通与底鼓侧链；立体声塑形默认宽度 1。
+- 律动预设以毫秒人性化（几毫秒而不是几十毫秒），保持重音踩镲的正常力度以便重复应用，幽灵军鼓写在 0.4；指南解释摇摆与 MPC 百分比、各角色侧链深度与鼓总线配方。
 
 ## 0.3.0
 
-Accounts and API tokens, documentation, Claude Code skills and agents, three QA rounds of fixes.
+账号与 API token、文档、Claude Code skill 与 agent，三轮 QA 修复。
