@@ -376,7 +376,7 @@ function finiteChannels(channels) {
 }
 
 export function analyzeAudio({ channels: input, sampleRate: fs }, opts = {}) {
-  if (!input?.length || !input[0]?.length) throw new Error('No audio data');
+  if (!input?.length || !input[0]?.length) throw new Error('没有音频数据');
   const { channels, invalid } = finiteChannels(input);
   const n = channels[0].length;
   const nch = channels.length;

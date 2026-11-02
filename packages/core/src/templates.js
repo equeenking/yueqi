@@ -5,6 +5,7 @@ import { createEmptyProject, createDefaultProject, createChannel, createPattern,
 import { parsePitchClass } from './music.js';
 import { createEffect } from './effects.js';
 import { INSTRUMENTS } from './instruments.js';
+import minyue from './templates/minyue.js';
 import trap from './templates/trap.js';
 import house from './templates/house.js';
 import boombap from './templates/boombap.js';
@@ -25,11 +26,11 @@ import cinematic from './templates/cinematic.js';
 import beatbox from './templates/beatbox.js';
 
 // in the order the template menus list them
-const GENRES = { trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox };
+const GENRES = { minyue, trap, house, boombap, lofi, techno, band, indian, eastasian, drill, afrobeats, reggaeton, dnb, synthwave, disco, neosoul, bossanova, cinematic, beatbox };
 
 export const TEMPLATES = {
-  default: { label: 'Default (4 drum channels)', bpm: 130 },
-  empty: { label: 'Empty project', bpm: 130 },
+  default: { label: '默认（4 个鼓通道）', bpm: 130 },
+  empty: { label: '空白工程', bpm: 130 },
   ...Object.fromEntries(Object.entries(GENRES).map(([id, g]) => [id, { label: g.label, bpm: g.spec().bpm }]))
 };
 
@@ -58,7 +59,7 @@ function build(spec) {
     for (const fx of c.fx || []) p.mixer[i + 1].effects.push(createEffect(fx.type, fx.params));
     if (c.insertVolume !== undefined) p.mixer[i + 1].volume = c.insertVolume;
     p.mixer[i + 1].sends = Object.entries(c.sends || {}).map(([bus, amount]) => {
-      if (!busIndex[bus]) throw new Error(`Template bus ${bus} missing`);
+      if (!busIndex[bus]) throw new Error(`模板里缺少总线 ${bus}`);
       return { to: busIndex[bus], amount };
     });
   });
@@ -69,7 +70,7 @@ function build(spec) {
     const pt = createPattern({ name: ps.name, color: ps.color, length: ps.bars * bar });
     for (const [chName, notes] of Object.entries(ps.notes(bar))) {
       const ch = byName[chName];
-      if (!ch) throw new Error(`Template channel ${chName} missing`);
+      if (!ch) throw new Error(`模板里缺少通道 ${chName}`);
       pt.notes[ch.id] = notes.map((n) => ({ ...n, key: n.key ?? ch.rootKey })).sort((a, b) => a.start - b.start);
     }
     p.patterns.push(pt);
@@ -86,17 +87,17 @@ function build(spec) {
 
 export function createProjectFromTemplate(template = 'default', opts = {}) {
   if (opts.key !== undefined && opts.key !== null && opts.key !== '') {
-    if (!normalizeKey(opts.key)) throw new Error(`Invalid key "${opts.key}": use a root note such as C, F#, Bb`);
+    if (!normalizeKey(opts.key)) throw new Error(`调号不对：「${opts.key}」。写成 C、F#、Bb 这样的主音`);
     if (template === 'default' || template === 'empty' || !template) opts = { ...opts, key: normalizeKey(opts.key) };
   }
   if (template === 'default' || !template) return createDefaultProject(opts);
   if (template === 'empty') {
     const p = createEmptyProject(opts);
-    p.patterns = [createPattern({ name: 'Pattern 1' })];
+    p.patterns = [createPattern({ name: '片段 1' })];
     return p;
   }
   const specFn = GENRES[template]?.spec;
-  if (!specFn) throw new Error(`Unknown template "${template}". Available: ${Object.keys(TEMPLATES).join(', ')}`);
+  if (!specFn) throw new Error(`不认识的模板「${template}」。可用：${Object.keys(TEMPLATES).join('、')}`);
   const spec = specFn();
   if (opts.name) spec.name = opts.name;
   if (opts.bpm) spec.bpm = opts.bpm;
@@ -109,7 +110,7 @@ export function createProjectFromTemplate(template = 'default', opts = {}) {
 function transposeToKey(p, key) {
   const from = parsePitchClass(p.key || 'C');
   const to = parsePitchClass(key);
-  if (to === null || from === null) throw new Error(`Invalid key "${key}"`);
+  if (to === null || from === null) throw new Error(`调号不对：「${key}」`);
   let shift = (to - from + 12) % 12;
   if (shift > 6) shift -= 12;
   const pitched = new Set(p.channels.filter((c) => INSTRUMENTS[c.instrument.kind]?.melodic).map((c) => c.id));

@@ -57,15 +57,15 @@ test('manifests: params, presets and reserved names', () => {
   bad(base({ params: [{ key: 'f', min: 0, max: 100, curve: 'log' }] }), /log curve needs min > 0/);
   bad(base({ params: [{ key: 'a' }, { key: 'a' }] }), /unique/);
   bad(base({ params: [{ key: 's', type: 'select', options: [] }] }), /1–24 choices/);
-  bad(base({ presets: { Loud: { mix: 2 } } }), /between 0 and 1/);
-  bad(base({ presets: { Odd: { nope: 1 } } }), /unknown parameter "nope"/);
+  bad(base({ presets: { Loud: { mix: 2 } } }), /必须在 0 到 1 之间/);
+  bad(base({ presets: { Odd: { nope: 1 } } }), /不认识的参数「nope」/);
   const m = validateManifest(base({ presets: { Wet: { mix: 1 }, Dry: { mix: 0, mode: 'b' } } }), files);
   assert.deepEqual(pluginParamValues(m, 'Dry', { mix: 0.25 }), { mix: 0.25, mode: 'b' });
   assert.deepEqual(sanitizePluginValues(m.params, { mix: 5, mode: 'z', junk: 1 }), { mix: 1 });
   // stepped params are rounded to their step (a generator's "pulses" is an integer)
   const st = validateManifest(base({ params: [{ key: 'n', min: 1, max: 32, default: 4, step: 1 }, { key: 'q', min: 0, max: 1, default: 0, step: 0.25 }] }), files);
   assert.deepEqual(sanitizePluginValues(st.params, { n: 2.5, q: 0.3 }), { n: 3, q: 0.25 });
-  assert.throws(() => sanitizePluginValues(m.params, { mix: 5 }, { strict: true }), /between 0 and 1/);
+  assert.throws(() => sanitizePluginValues(m.params, { mix: 5 }, { strict: true }), /必须在 0 到 1 之间/);
   // descriptive text is cleaned, homepage must be https
   const t = validateManifest(base({ description: 'a\u0000b\nc', homepage: 'javascript:alert(1)' }), files);
   assert.equal(t.description, 'a b c');
@@ -84,7 +84,7 @@ test('projects keep plugin instruments and effects (even when the plugin is miss
   assert.deepEqual(fx, { id: 'fx_plug', type: 'plugin', plugin: 'acme.echo', enabled: true, params: { mix: 0.3, huge: 1e6 } });
   // automation of a plugin effect's numeric param
   p = applyOps(p, [{ type: 'automation/add', automation: { id: 'auto_m', name: 'm', target: { type: 'effect', index: 1, effectId: 'fx_plug', param: 'mix' }, length: 96, points: [] } }]);
-  assert.throws(() => applyOps(p, [{ type: 'automation/add', automation: { name: 'x', target: { type: 'effect', index: 1, effectId: 'fx_plug', param: 'nope' }, length: 96, points: [] } }]), /not a number/);
+  assert.throws(() => applyOps(p, [{ type: 'automation/add', automation: { name: 'x', target: { type: 'effect', index: 1, effectId: 'fx_plug', param: 'nope' }, length: 96, points: [] } }]), /不是数字/);
   const n = normalizeProject(JSON.parse(JSON.stringify(p)));
   assert.equal(n.channels.find((c) => c.id === 'ch_plug').instrument.plugin, 'acme.chip');
   assert.equal(n.mixer[1].effects.find((e) => e.id === 'fx_plug').plugin, 'acme.echo');
@@ -112,5 +112,5 @@ test('generator output is untrusted: invalid notes dropped, values clamped, coun
     { step: 15, length: 1, key: 61, velocity: 0.8 }
   ]);
   assert.equal(cleanGeneratedNotes(Array.from({ length: 10000 }, (_, i) => ({ step: i % 16, key: 60 })), 16).length, 4096);
-  assert.throws(() => cleanGeneratedNotes({ notes: [] }, 16), /must return a list/);
+  assert.throws(() => cleanGeneratedNotes({ notes: [] }, 16), /必须返回一组音符/);
 });

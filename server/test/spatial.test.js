@@ -2,7 +2,7 @@
 // export_spatial (browser job with files and server-written positions).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { objectPositionAt } from '@greanteadawy/core';
+import { objectPositionAt, zhLegacyName } from '@greanteadawy/core';
 import { startServer, agent, mcpClient, callTool, openSocket, makeWav } from './helpers.js';
 
 let srv;
@@ -26,17 +26,17 @@ after(async () => {
 });
 
 const project = async () => (await user.get(`/api/projects/${pid}`)).body;
-const insertOf = (p, name) => p.mixer.findIndex((m) => m.name === name);
+const insertOf = (p, name) => p.mixer.findIndex((m) => m.name === name || m.name === zhLegacyName(name));
 const fails = (pr, re) => pr.then(() => assert.fail('expected an error'), (e) => assert.match(e.message, re));
 
 test('set_spatial and place_object: presets, polar, x/y/z, the bed and the errors', async () => {
-  assert.match(await call('set_spatial', { monitor: 'binaural' }), /Spatial mix OFF, monitoring binaural[\s\S]*no 3D objects yet/);
+  assert.match(await call('set_spatial', { monitor: 'binaural' }), /空间混音已关闭，监听方式：双耳（耳机）[\s\S]*还没有三维对象/);
   // a channel name resolves to its insert; placing turns the spatial mix on
   let out = await call('place_object', { insert: 'Strings', position: 'overhead' });
-  assert.match(out, /Placed insert \d+ "Strings" at x 0, y 0, z 1/);
-  assert.match(out, /Spatial mix turned on/);
+  assert.match(out, /已放置通道条 \d+「弦乐」于 x 0, y 0, z 1/);
+  assert.match(out, /空间混音已开启/);
   out = await call('place_object', { insert: 'Guitar', azimuth: -90, elevation: 0, distance: 0.5, lfe: 0.2 });
-  assert.match(out, /"Guitar" at x -0\.5, y 0, z 0, lfe 0\.2/);
+  assert.match(out, /「吉他」于 x -0\.5, y 0, z 0, lfe 0\.2/);
   out = await call('place_object', { insert: 'Piano', position: 'front-left', z: 0.4 });
   assert.match(out, /x -1, y 1, z 0\.4/);
   let p = await project();
@@ -45,21 +45,21 @@ test('set_spatial and place_object: presets, polar, x/y/z, the bed and the error
   assert.match(await call('get_project', {}), /spatial \(3D\) mix ON, monitoring binaural/);
 
   // back to the bed
-  assert.match(await call('place_object', { insert: 'Piano', enabled: false }), /back in the stereo bed/);
+  assert.match(await call('place_object', { insert: 'Piano', enabled: false }), /已回到立体声总线/);
   p = await project();
   assert.equal(p.mixer[insertOf(p, 'Piano')].spatial.enabled, false);
 
-  await fails(call('place_object', { insert: 0, position: 'left' }), /master can't be a 3D object/);
-  await fails(call('place_object', { insert: 'Nope', position: 'left' }), /No mixer insert or channel named "Nope"/);
+  await fails(call('place_object', { insert: 0, position: 'left' }), /主输出不能做三维对象/);
+  await fails(call('place_object', { insert: 'Nope', position: 'left' }), /找不到名为「Nope」的混音通道条或通道/);
   // an insert that feeds a bus can't be an object
   const bass = insertOf(p, 'Bass');
   await call('set_mixer', { insert: bass, output: insertOf(p, 'Reverb') });
-  await fails(call('place_object', { insert: 'Bass', position: 'left' }), /routes into insert/);
+  await fails(call('place_object', { insert: 'Bass', position: 'left' }), /已经路由到/);
 });
 
 test('move_object: circle, line and keyframe paths become spatialX/Y/Z automation clips', async () => {
   const out = await call('move_object', { insert: 'Strings', path: 'circle', startBar: 5, bars: 4, radius: 1, height: 0.5 });
-  assert.match(out, /Moving insert \d+ "Strings" \(circle\) from bar 5 for 4 bars/);
+  assert.match(out, /通道条 \d+「弦乐」按圆形路径移动：第 5 小节起 4 小节/);
   let p = await project();
   const i = insertOf(p, 'Strings');
   const autos = p.automations.filter((a) => a.target.type === 'mixer' && a.target.index === i);
@@ -80,8 +80,8 @@ test('move_object: circle, line and keyframe paths become spatialX/Y/Z automatio
   assert.deepEqual(objectPositionAt(p, g, 0), { enabled: true, x: -1, y: -1, z: 0, lfe: 0.2 });
   const end = objectPositionAt(p, g, 2 * bar - 1);
   assert.ok(end.x > 0.99 && end.y < -0.99 && end.z > 0.99, JSON.stringify(end));
-  await fails(call('move_object', { insert: 'Guitar', path: 'points', startBar: 1, bars: 1, points: [{ bar: 0, x: 0 }, { bar: 3, x: 1 }] }), /beyond the movement/);
-  await fails(call('move_object', { insert: 'Piano', path: 'rise', startBar: 1, bars: 1 }).then(() => call('move_object', { insert: 'Piano', path: 'points', startBar: 1, bars: 1, points: [{ bar: 0, x: 0.5 }, { bar: 1, x: 0.5 }] })), /does not move/);
+  await fails(call('move_object', { insert: 'Guitar', path: 'points', startBar: 1, bars: 1, points: [{ bar: 0, x: 0 }, { bar: 3, x: 1 }] }), /超出了移动范围/);
+  await fails(call('move_object', { insert: 'Piano', path: 'rise', startBar: 1, bars: 1 }).then(() => call('move_object', { insert: 'Piano', path: 'points', startBar: 1, bars: 1, points: [{ bar: 0, x: 0.5 }, { bar: 1, x: 0.5 }] })), /没让对象动起来/);
 });
 
 test('export_spatial: browser job, object files and the positions JSON written by the server', async () => {
@@ -114,10 +114,10 @@ test('export_spatial: browser job, object files and the positions JSON written b
   const out = await call('export_spatial', { format: 'objects', mode: 'pattern', pattern: 'Piano' });
   assert.equal(jobs[0].kind, 'spatial');
   assert.equal(jobs[0].format, 'objects');
-  assert.match(out, /Exported Object stems \+ positions \(2s, 48 kHz \/ 24-bit\)/);
+  assert.match(out, /已导出 .*（2 秒，48 kHz／24 位）/);
   assert.match(out, /Space-bed\.wav/);
   assert.match(out, /Space-positions\.json/);
-  assert.match(out, /Objects: Guitar \(moving\), Strings/);
+  assert.match(out, /三维对象：Guitar（移动中）、Strings/);
   const res = await user.get('/api/exports/Space-positions.json');
   assert.equal(res.status, 200);
   const doc = typeof res.body === 'string' ? JSON.parse(res.body) : res.body;
@@ -129,7 +129,7 @@ test('export_spatial: browser job, object files and the positions JSON written b
 
 test('export_spatial needs objects; the job kinds and files are guarded', async () => {
   await call('create_project', { name: 'Flat', template: 'trap' });
-  await fails(call('export_spatial', { format: '5.1' }), /No 3D objects yet/);
+  await fails(call('export_spatial', { format: '5.1' }), /还没有三维对象/);
   // a render job can't upload files; a spatial job can
   const r = await user.post('/api/jobs', { job: { kind: 'nope' } });
   assert.equal(r.status, 400);

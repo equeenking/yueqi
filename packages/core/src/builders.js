@@ -68,7 +68,7 @@ function centerOn(notes, center) {
 /** A rhythm step string that restarts every chord; must contain at least one step. */
 function parseRhythm(rhythm) {
   const r = parseStepString(rhythm);
-  if (!r.steps) throw new Error(`Rhythm "${rhythm}" has no steps — use e.g. "x---x---" (x = hit, - = rest)`);
+  if (!r.steps) throw new Error(`节奏「${rhythm}」里没有一步——写成 "x---x---" 这样（x＝敲，－＝休止）`);
   return r;
 }
 
@@ -93,7 +93,7 @@ export function chordProgressionNotes(chords, {
   start = 0, chordLength = PPQ * 4, octave = 4, style = 'block', rhythm = 'x-------x-------', rate = STEP * 2,
   velocity = 0.75, voiceLead = true, inversion = 0, gate = 0.9, center = null, voicing = 'close'
 } = {}) {
-  if (!VOICINGS.includes(voicing)) throw new Error(`Unknown voicing "${voicing}". Use: ${VOICINGS.join(', ')}`);
+  if (!VOICINGS.includes(voicing)) throw new Error(`不认识的排列法「${voicing}」。可用：${VOICINGS.join('、')}`);
   const out = [];
   let target = center;
   chords.forEach((symbol, ci) => {
@@ -248,14 +248,14 @@ export function parseBassLine(line) {
     const lenStr = lenRaw === undefined ? undefined : strip(lenRaw);
     const steps = lenStr === undefined ? 1 : Number(lenStr);
     // a 32nd note is the shortest useful bass note (and keeps a single call from generating millions of notes)
-    if (!Number.isFinite(steps) || steps < 0.5) throw new Error(`Invalid length in bass token "${raw}": use at least 0.5 steps (a 32nd note)`);
-    if (tokens.length >= 512) throw new Error('The bass line is too long (max 512 tokens): it repeats for every chord anyway');
+    if (!Number.isFinite(steps) || steps < 0.5) throw new Error(`贝斯记号「${raw}」的时值不对：至少 0.5 步（三十二分音符）`);
+    if (tokens.length >= 512) throw new Error('贝斯声部太长了（最多 512 个记号）：它反正会对每个和弦重复一遍');
     if (deg === '-' || deg === '_') tokens.push({ kind: 'rest', steps });
     else if (deg === '~') tokens.push({ kind: 'tie', steps });
     else if (DEGREE_RE.test(deg)) tokens.push({ kind: 'note', degree: deg, steps, accent, ghost, slide });
-    else throw new Error(`Invalid bass token "${raw}". Use degrees R 3 5 7 8 b7 -5 …, "-" rests, "~" ties, e.g. "R:3 R:1 -:2 5:2 8:4"`);
+    else throw new Error(`贝斯记号「${raw}」不对。用音级 R 3 5 7 8 b7 -5 …，“-”休止，“~”延音，例如 "R:3 R:1 -:2 5:2 8:4"`);
   }
-  if (!tokens.length) throw new Error('The bass line is empty');
+  if (!tokens.length) throw new Error('贝斯声部是空的');
   return tokens;
 }
 
@@ -329,10 +329,10 @@ function melodyTokens(str) {
     const flags = /[!~]*$/.exec(tok)[0];
     const [name, lenStr, extra] = tok.slice(0, tok.length - flags.length).split(':');
     if (!name || extra !== undefined || (lenStr !== undefined && !/^(\d+\.?\d*|\.\d+)$/.test(lenStr))) {
-      throw new Error(`Invalid melody token "${tok}": use note:lengthInSteps with an optional ! (accent) or ~ (slide), e.g. "C5:2", "Eb5:4!", "D5:2~"`);
+      throw new Error(`旋律记号「${tok}」不对：写成 音名:步数，可加 !（重音）或 ~（滑音），例如 "C5:2"、"Eb5:4!"、"D5:2~"`);
     }
     const len = (lenStr ? parseFloat(lenStr) : 1) * STEP;
-    if (!Number.isFinite(len) || len <= 0) throw new Error(`Invalid melody token "${tok}"`);
+    if (!Number.isFinite(len) || len <= 0) throw new Error(`旋律记号「${tok}」不对`);
     return { tok, name, len, rest: name === '-' || name.toLowerCase() === 'r', accent: flags.includes('!'), slide: flags.includes('~') };
   });
 }

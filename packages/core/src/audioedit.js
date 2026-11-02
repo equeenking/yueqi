@@ -14,11 +14,11 @@ export const clipSeconds = (clip) => clipLength(clip) / clip.sampleRate;
 
 /** A validated clip: 1–2 channels of the same length, finite sample rate. */
 export function makeClip(channels, sampleRate) {
-  if (!Number.isFinite(sampleRate) || sampleRate < 8000 || sampleRate > 384000) throw new Error('Invalid sample rate');
-  if (!channels.length || channels.length > 2) throw new Error('A sample has 1 or 2 channels');
+  if (!Number.isFinite(sampleRate) || sampleRate < 8000 || sampleRate > 384000) throw new Error('采样率不对');
+  if (!channels.length || channels.length > 2) throw new Error('采样只能是 1 或 2 个声道');
   const len = channels[0].length;
-  if (channels.some((c) => c.length !== len)) throw new Error('Channels must have the same length');
-  if (len / sampleRate > MAX_SECONDS) throw new Error(`Samples are limited to ${MAX_SECONDS / 60} minutes`);
+  if (channels.some((c) => c.length !== len)) throw new Error('各声道长度必须一致');
+  if (len / sampleRate > MAX_SECONDS) throw new Error(`采样最长 ${MAX_SECONDS / 60} 分钟`);
   return { sampleRate, channels: channels.map((c) => (c instanceof Float32Array ? c : Float32Array.from(c))) };
 }
 
@@ -241,13 +241,13 @@ export function trimSilence(clip, thresholdDb = -50, padMs = 10) {
  * changes (ratio < 1 = faster and higher, like a turntable). Shrinking low-passes first so it doesn't alias.
  */
 export function resampleClip(clip, ratio, sampleRate = clip.sampleRate) {
-  if (!(ratio > 0)) throw new Error('ratio must be positive');
+  if (!(ratio > 0)) throw new Error('比例必须大于 0');
   return { sampleRate, channels: resampleChannels(clip.channels, Math.max(1, Math.round(clipLength(clip) * ratio))) };
 }
 
 /** Change the speed of [start, end) by `rate` (2 = twice as fast and an octave up), like a turntable. */
 export function speedRange(clip, start, end, rate) {
-  if (!(rate >= 0.25 && rate <= 4)) throw new Error('rate must be between 0.25 and 4');
+  if (!(rate >= 0.25 && rate <= 4)) throw new Error('倍率必须在 0.25 到 4 之间');
   const [s, e] = clampRange(clip, start, end);
   if (e <= s) return mapChannels(clip, (c) => c.slice());
   const part = resampleClip(sliceClip(clip, s, e), 1 / rate);
@@ -256,7 +256,7 @@ export function speedRange(clip, start, end, rate) {
 
 /** Change the length of [start, end) by `rate` (2 = half as long) keeping its pitch (WSOLA). */
 export function stretchRange(clip, start, end, rate) {
-  if (!(rate >= 0.25 && rate <= 4)) throw new Error('rate must be between 0.25 and 4');
+  if (!(rate >= 0.25 && rate <= 4)) throw new Error('倍率必须在 0.25 到 4 之间');
   const [s, e] = clampRange(clip, start, end);
   if (e <= s) return mapChannels(clip, (c) => c.slice());
   const part = sliceClip(clip, s, e);
@@ -331,12 +331,12 @@ export function applyEdit(clip, op) {
     const len = clipLength(clip);
     const [s, e] = clampRange(clip, Number.isFinite(op.start) ? op.start * sr : undefined, Number.isFinite(op.end) ? op.end * sr : undefined);
     const est = (len - (e - s) + (e - s) / op.rate) / sr;
-    if (est > MAX_SECONDS) throw new Error(`${op.op}: the result would be ${(est / 60).toFixed(1)} minutes long; samples are limited to ${MAX_SECONDS / 60} minutes`);
+    if (est > MAX_SECONDS) throw new Error(`${op.op}：结果会有 ${(est / 60).toFixed(1)} 分钟长；采样最长 ${MAX_SECONDS / 60} 分钟`);
   }
   const r = runEdit(clip, op);
   const n = clipLength(r.clip);
-  if (!n) throw new Error(`${op.op}: that would leave the sample empty — choose a range that keeps some audio`);
-  if (n / r.clip.sampleRate > MAX_SECONDS) throw new Error(`${op.op}: the result would be ${(n / r.clip.sampleRate / 60).toFixed(1)} minutes long; samples are limited to ${MAX_SECONDS / 60} minutes`);
+  if (!n) throw new Error(`${op.op}：这样采样就空了——选一段还能留住声音的范围`);
+  if (n / r.clip.sampleRate > MAX_SECONDS) throw new Error(`${op.op}：结果会有 ${(n / r.clip.sampleRate / 60).toFixed(1)} 分钟长；采样最长 ${MAX_SECONDS / 60} 分钟`);
   return r;
 }
 
@@ -346,7 +346,7 @@ function runEdit(clip, op) {
   const fr = (sec, dflt) => (Number.isFinite(sec) ? Math.round(sec * sr) : dflt);
   const s = fr(op.start, 0);
   const e = fr(op.end, len);
-  if (s > len || (Number.isFinite(op.start) && Number.isFinite(op.end) && e <= s)) throw new Error(`${op.op}: start..end is outside the sample (it is ${(len / sr).toFixed(2)} s long)`);
+  if (s > len || (Number.isFinite(op.start) && Number.isFinite(op.end) && e <= s)) throw new Error(`${op.op}：起点..终点超出了采样范围（这份采样只有 ${(len / sr).toFixed(2)} 秒）`);
   switch (op.op) {
     case 'trim': return { clip: cropClip(clip, s, e) };
     case 'delete': return { clip: deleteRange(clip, s, e) };
@@ -354,7 +354,7 @@ function runEdit(clip, op) {
     case 'fade_in': return { clip: fadeRange(clip, s, Number.isFinite(op.end) ? e : Math.min(len, s + Math.round(sr * 0.01)), 'in', op.curve) };
     case 'fade_out': return { clip: fadeRange(clip, Number.isFinite(op.start) ? s : Math.max(0, e - Math.round(sr * 0.01)), e, 'out', op.curve) };
     case 'gain': {
-      if (!Number.isFinite(op.db) || Math.abs(op.db) > 48) throw new Error('gain needs db between -48 and 48');
+      if (!Number.isFinite(op.db) || Math.abs(op.db) > 48) throw new Error('增益的 db 要在 -48 到 48 之间');
       return { clip: gainRange(clip, s, e, op.db) };
     }
     case 'normalize': return { clip: normalizeRange(clip, s, e, Number.isFinite(op.peakDb) ? Math.min(0, op.peakDb) : -1) };
@@ -370,7 +370,7 @@ function runEdit(clip, op) {
     case 'speed': return { clip: speedRange(clip, s, e, op.rate) };
     case 'stretch': return { clip: stretchRange(clip, s, e, op.rate) };
     case 'pitch_shift': {
-      if (!Number.isFinite(op.semitones) || Math.abs(op.semitones) > 24) throw new Error('pitch_shift needs semitones between -24 and 24');
+      if (!Number.isFinite(op.semitones) || Math.abs(op.semitones) > 24) throw new Error('移调的半音数要在 -24 到 24 之间');
       return { clip: pitchShiftClip(clip, s, e, op.semitones) };
     }
     case 'pitch_correct': {
@@ -378,6 +378,6 @@ function runEdit(clip, op) {
       const n = r.notes.length;
       return { clip: r.clip, note: n ? `${n} note${n === 1 ? '' : 's'} tuned to ${r.scaleLabel} (largest move ${r.maxMove.toFixed(2)} semitones)` : 'no melody found (pitch correction needs a solo voice or instrument)' };
     }
-    default: throw new Error(`Unknown edit "${op.op}". Use: ${Object.keys(EDIT_OPS).join(', ')}`);
+    default: throw new Error(`不认识的编辑操作「${op.op}」。可用：${Object.keys(EDIT_OPS).join('、')}`);
   }
 }

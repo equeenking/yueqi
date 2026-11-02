@@ -63,7 +63,9 @@ export class RateLimiter {
   }
 }
 
-export function createAuth({ users, sessions, ttlDays = 30 }) {
+export function createAuth({ users, sessions, ttlDays = 30, disableAuth = false }) {
+  // 开放模式下没有真实用户时的兜底身份：能读写所有 API，但不会被落盘成正式账号
+  const GUEST = { id: 'guest', username: 'guest', name: '访客', role: 'admin', disabled: false };
   /**
    * Resolve the caller. Returns { user, via: 'session' | 'token', sid? }, { invalidToken: true } or null.
    * Tokens in the query string (?token=) are only accepted where explicitly allowed (WebSocket, MCP URL).
@@ -84,6 +86,13 @@ export function createAuth({ users, sessions, ttlDays = 30 }) {
       if (!u) return { invalidToken: true };
       users.touchToken(u);
       return { user: u, via: 'token', tokenHash: sha256(token) };
+    }
+    // 临时开放模式：没有合法会话/令牌时，直接用第一个管理员身份进入，从而跳过登录页。
+    // 优先真实管理员（保留云端已有的账号与工程）；连管理员都没有再用合成访客兜底，保证首跑也能进。
+    if (disableAuth) {
+      const admin = users.firstAdmin();
+      if (admin) return { user: admin, via: 'session', sid: null };
+      return { user: GUEST, via: 'session', sid: null, guest: true };
     }
     return null;
   }
@@ -125,5 +134,5 @@ export function createAuth({ users, sessions, ttlDays = 30 }) {
     res.append('Set-Cookie', `${SESSION_COOKIE}=; ${cookieFlags(req)}; Max-Age=0`);
   }
 
-  return { identify, requireUser, requireSession, requireAdmin, setSessionCookie, clearSessionCookie };
+  return { identify, requireUser, requireSession, requireAdmin, setSessionCookie, clearSessionCookie, disabled: disableAuth };
 }

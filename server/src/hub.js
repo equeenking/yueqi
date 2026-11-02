@@ -78,6 +78,7 @@ export class Hub {
     const auth = req.gtdAuth;
     const client = {
       ws, clientId: null, projectId: null, userId: auth.user.id, sid: auth.sid || null, tokenHash: auth.tokenHash || null,
+      guest: auth.guest || false,
       alive: true, lastSeen: Date.now()
     };
     this.clients.add(client);
@@ -115,10 +116,15 @@ export class Hub {
     if (!pending) {
       pending = (async () => {
         const user = this.users.get(userId);
-        let id = await activeProjectId(this.store, this.users, user);
+        // 临时开放模式的合成访客没有用户记录：跳过 activeProjectId（它会按 userId 查 users），直接复用/建一个默认工程
+        let id = user ? await activeProjectId(this.store, this.users, user) : null;
+        if (!id && !user) {
+          const owned = await this.store.list(userId);
+          id = owned[0]?.id || null;
+        }
         if (!id) {
           const p = await this.store.create({ ownerId: userId, template: 'default', name: 'My First Beat' });
-          await this.users.update(userId, { activeProjectId: p.id });
+          if (user) await this.users.update(userId, { activeProjectId: p.id }); // 临时开放模式的合成访客没有用户记录
           id = p.id;
         }
         return id;
@@ -130,6 +136,7 @@ export class Hub {
 
   /** Is the credential this socket was opened with (session or API token) still valid? */
   stillValid(c) {
+    if (c.guest) return true; // 临时开放模式的合成访客没有真实凭据，始终视为有效
     const u = this.users.get(c.userId);
     if (!u || u.disabled) return false;
     if (c.sid) {
@@ -156,7 +163,7 @@ export class Hub {
       case 'subscribe': {
         const project = await this.store.getOwned(msg.projectId, client.userId);
         client.projectId = project.id;
-        if (msg.makeActive !== false) await this.users.update(client.userId, { activeProjectId: project.id });
+        if (msg.makeActive !== false && this.users.get(client.userId)) await this.users.update(client.userId, { activeProjectId: project.id }); // 临时开放模式的合成访客没有用户记录
         send(client.ws, { type: 'project', project });
         return;
       }

@@ -166,15 +166,15 @@ const dir = (azDeg, elDeg = 0) => {
  */
 export const SPEAKER_LAYOUTS = {
   '5.1': {
-    label: '5.1 (L R C LFE Ls Rs)', mask: 0x3f,
+    label: '5.1 环绕（左／右／中置／低频／左环绕／右环绕）', mask: 0x3f,
     speakers: [['L', dir(-30)], ['R', dir(30)], ['C', dir(0)], ['LFE', null], ['Ls', dir(-110)], ['Rs', dir(110)]]
   },
   '7.1': {
-    label: '7.1 (L R C LFE Lrs Rrs Lss Rss)', mask: 0x63f,
+    label: '7.1 环绕（5.1 + 左后／右后环绕）', mask: 0x63f,
     speakers: [['L', dir(-30)], ['R', dir(30)], ['C', dir(0)], ['LFE', null], ['Lrs', dir(-135)], ['Rrs', dir(135)], ['Lss', dir(-90)], ['Rss', dir(90)]]
   },
   '7.1.4': {
-    label: '7.1.4 (7.1 + Ltf Rtf Ltr Rtr)', mask: 0x2d63f,
+    label: '7.1.4 全景声（7.1 + 四个顶置音箱）', mask: 0x2d63f,
     speakers: [
       ['L', dir(-30)], ['R', dir(30)], ['C', dir(0)], ['LFE', null], ['Lrs', dir(-135)], ['Rrs', dir(135)], ['Lss', dir(-90)], ['Rss', dir(90)],
       ['Ltf', dir(-45, 45)], ['Rtf', dir(45, 45)], ['Ltr', dir(-135, 45)], ['Rtr', dir(135, 45)]

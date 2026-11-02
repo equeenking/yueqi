@@ -30,7 +30,8 @@ after(async () => {
 test('lists 70+ tools, prompts and resources', async () => {
   const { tools } = await client.listTools();
   assert.ok(tools.length >= 70, `tools: ${tools.length}`);
-  for (const t of tools) assert.ok(t.description && t.description.length > 15, `${t.name} has a description`);
+  // 中文说明比英文短，按中文的信息密度放宽到 8 个字
+  for (const t of tools) assert.ok(t.description && t.description.length > 8, `${t.name} has a description`);
   const names = new Set(tools.map((t) => t.name));
   for (const n of ['render_mix', 'get_sample_info', 'save_version', 'undo', 'music_theory', 'add_roll', 'update_notes', 'copy_bars', 'list_export_formats', 'export_audio', 'set_spatial', 'place_object', 'move_object', 'export_spatial']) assert.ok(names.has(n), n);
   const { prompts } = await client.listPrompts();
@@ -82,7 +83,7 @@ test('build a full track with the tools, live in a connected browser', async () 
   const clip = before.body.playlist.clips.find((c) => c.start === 0);
   await call('update_clips', { clips: [{ clipId: clip.id, track: 5, offsetBars: 1, bars: 3 }] });
   await call('add_effect', { insert: 5, type: 'reverb', params: { mix: 0.3 } });
-  await call('add_effect', { insert: 5, type: 'eq', params: { lowMid: 0 } }).then(() => assert.fail('bad param accepted'), (e) => assert.match(e.message, /Unknown param/));
+  await call('add_effect', { insert: 5, type: 'eq', params: { lowMid: 0 } }).then(() => assert.fail('bad param accepted'), (e) => assert.match(e.message, /不认识的参数/));
   await call('add_effect', { insert: 5, type: 'eq', params: { mid: -3 } });
   await call('move_effect', { insert: 5, effectId: 'eq', position: 0 });
   await call('add_effect', { insert: 0, type: 'compressor' });
@@ -103,7 +104,7 @@ test('build a full track with the tools, live in a connected browser', async () 
   // errors are reported as tool errors, not protocol errors
   const err = await client.callTool({ name: 'write_drums', arguments: { pattern: 'Nope', tracks: { Kick: 'x' } } });
   assert.ok(err.isError);
-  assert.match(err.content[0].text, /not found/);
+  assert.match(err.content[0].text, /找不到/);
   await call('remove_automation', { automation: 'Intro sweep' });
   sock.ws.close();
 });

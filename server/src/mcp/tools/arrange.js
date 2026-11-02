@@ -5,15 +5,15 @@ import { requirePlugin } from './plugins.js';
 
 export function registerArrangeTools({ tool, backend, load, resolveProjectId }) {
   tool('place_pattern', {
-    title: 'Place pattern in playlist',
-    description: 'Put a pattern clip in the playlist (song arrangement). The clip loops the pattern for `bars` bars.',
+    title: '把片段放进播放列表',
+    description: '把一个片段块放进播放列表（编曲）。这个片段块会按 bars 指定的小节数循环播放片段。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
-      startBar: z.number().min(1).describe('1-based bar where the clip starts (fractions allowed, e.g. 4.5)'),
-      bars: z.number().positive().optional().describe('Clip length in bars (default: pattern length)'),
-      track: z.number().int().min(1).max(MAX_TRACKS).optional().describe('1-based playlist track (default: the track this pattern already uses, else first empty track)'),
-      repeat: z.number().int().min(1).max(64).optional().describe('Place this many consecutive copies (default 1)')
+      startBar: z.number().min(1).describe('片段块起始小节，从 1 开始数（可以带小数，例如 4.5）'),
+      bars: z.number().positive().optional().describe('片段块长度，单位小节（默认等于片段长度）'),
+      track: z.number().int().min(1).max(MAX_TRACKS).optional().describe('播放列表轨道号，从 1 开始（默认：这个片段已经在用的轨道，否则第一条空轨道）'),
+      repeat: z.number().int().min(1).max(64).optional().describe('连着放这么多份（默认 1）')
     },
     annotations: A.edit
   }, async ({ projectId, pattern, startBar, bars, track, repeat = 1 }) => {
@@ -29,17 +29,17 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('arrange_song', {
-    title: 'Arrange song',
-    description: 'Build the playlist from consecutive sections, e.g. [{"name":"Intro","bars":4,"patterns":["Chords"]},{"name":"Hook","bars":8,"patterns":["Drums","808","Chords","Melody"]}]. Each pattern gets its own track (named after it) and loops for the section. Named sections become markers above the playlist (find them later in get_project). By default replaces existing pattern clips and markers (audio/automation clips are kept).',
+    title: '编排整首',
+    description: '按一段段连续的段落搭出播放列表，例如 [{"name":"前奏","bars":4,"patterns":["和弦"]},{"name":"副歌","bars":8,"patterns":["鼓组","808","和弦","旋律"]}]。每个片段各占一条轨道（轨道名跟着片段走），并在该段落内循环。起了名字的段落会在播放列表上方变成标记（之后可以在 get_project 里看到）。默认会替换已有的片段块和标记（音频块与自动化块保留）。',
     inputSchema: {
       projectId: projectIdArg,
       sections: z.array(z.object({
         name: z.string().optional(),
         bars: z.number().positive(),
-        patterns: z.array(z.string()).describe('Pattern names/ids playing in this section')
+        patterns: z.array(z.string()).describe('这一段里在响的片段名／id')
       })).min(1).max(64),
-      clear: z.boolean().optional().describe('Remove existing pattern clips first (default true)'),
-      startBar: z.number().min(1).optional().describe('Where the first section starts (default 1)')
+      clear: z.boolean().optional().describe('先清掉已有的片段块（默认是）'),
+      startBar: z.number().min(1).optional().describe('第一段从哪一小节开始（默认 1）')
     },
     annotations: A.edit
   }, async ({ projectId, sections, clear = true, startBar = 1 }) => {
@@ -90,8 +90,8 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('update_clips', {
-    title: 'Move / resize clips',
-    description: 'Edit playlist clips by id (ids are shown by get_project): move (startBar, track), resize (bars), trim the start (offsetBars), mute; audio clips also take gainDb, fadeInSteps/fadeOutSteps and rate (1 = original speed; project bpm ÷ loop bpm repitches a loop to the project tempo).',
+    title: '移动／改长度',
+    description: '按 id 编辑播放列表里的片段块（id 由 get_project 给出）：移动（startBar、track）、改长度（bars）、裁掉开头（offsetBars）、静音；音频块还能设 gainDb、fadeInSteps／fadeOutSteps 和 rate（1＝原速；用 工程 bpm ÷ 循环 bpm 可以把循环变调对齐工程速度）。',
     inputSchema: {
       projectId: projectIdArg,
       clips: z.array(z.object({
@@ -99,12 +99,12 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
         startBar: z.number().min(1).optional(),
         bars: z.number().positive().optional(),
         track: z.number().int().min(1).max(MAX_TRACKS).optional(),
-        offsetBars: z.number().min(0).optional().describe('Start playing this far into the pattern/audio'),
+        offsetBars: z.number().min(0).optional().describe('从哪里开始播：从片段／音频内部偏移这么多小节'),
         mute: z.boolean().optional(),
-        gainDb: z.number().min(-60).max(12).optional().describe('Audio clips: clip gain in dB'),
-        fadeInSteps: z.number().min(0).optional().describe('Audio clips: fade-in length in steps'),
-        fadeOutSteps: z.number().min(0).optional().describe('Audio clips: fade-out length in steps'),
-        rate: z.number().min(0.25).max(4).optional().describe('Audio clips: playback speed (changes pitch too, like a turntable)')
+        gainDb: z.number().min(-60).max(12).optional().describe('音频块：这一段本身的增益，单位 dB'),
+        fadeInSteps: z.number().min(0).optional().describe('音频块：淡入长度，单位步'),
+        fadeOutSteps: z.number().min(0).optional().describe('音频块：淡出长度，单位步'),
+        rate: z.number().min(0.25).max(4).optional().describe('音频块：播放速度（音高也会跟着变，像唱机变速）')
       })).min(1).max(500)
     },
     annotations: A.edit
@@ -137,12 +137,12 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('set_markers', {
-    title: 'Add / rename / remove song markers',
-    description: 'Markers name positions in the song (section starts like "Verse 1", "Hook", "Drop") and show above the playlist; get_project lists them. arrange_song creates them for named sections. add: markers to add; remove: marker ids or names to delete; clear=true removes all first.',
+    title: '添加／改名／删除标记',
+    description: '标记给曲子里的位置起名字（比如「主歌 1」「副歌」「drop」这样的段落起点），显示在播放列表上方；get_project 会列出它们。arrange_song 会为起了名字的段落自动生成标记。add：要加的标记；remove：要删的标记 id 或名字；clear=true 先把全部标记清掉。',
     inputSchema: {
       projectId: projectIdArg,
-      add: z.array(z.object({ bar: z.number().min(1).describe('1-based bar (fractions allowed)'), name: z.string().min(1).max(64) })).max(64).optional(),
-      remove: z.array(z.string()).optional().describe('Marker ids or names'),
+      add: z.array(z.object({ bar: z.number().min(1).describe('小节号，从 1 开始（可以带小数）'), name: z.string().min(1).max(64) })).max(64).optional(),
+      remove: z.array(z.string()).optional().describe('标记的 id 或名字'),
       clear: z.boolean().optional()
     },
     annotations: A.edit
@@ -156,7 +156,7 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     else if (remove.length) {
       gone = remove.map((ref) => {
         const m = existing.find((x) => x.id === ref) || existing.find((x) => x.name.toLowerCase() === String(ref).toLowerCase());
-        if (!m) throw new Error(`Marker "${ref}" not found. Markers: ${existing.map((x) => `${x.name} [${x.id}]`).join(', ') || 'none'}`);
+        if (!m) throw new Error(`找不到标记「${ref}」。现有标记：${existing.map((x) => `${x.name} [${x.id}]`).join('、') || '无'}`);
         return m;
       });
     }
@@ -170,19 +170,19 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
     if (!ops.length && !add.length) throw new Error('Nothing to do: pass add, remove or clear');
     if (!ops.length) return ok(`Markers unchanged: ${existing.map((m) => `${m.name} @ bar ${barsOf(p, m.tick) + 1} [${m.id}]`).join(' · ')}.`);
     const after = await backend.applyOps(p.id, ops);
-    return ok(`Markers: ${(after.markers || []).map((m) => `${m.name} @ bar ${barsOf(after, m.tick) + 1} [${m.id}]`).join(' · ') || 'none'}.`);
+    return ok(`标记：${(after.markers || []).map((m) => `${m.name} @ 第 ${barsOf(after, m.tick) + 1} 小节 [${m.id}]`).join(' · ') || '无'}。`);
   });
 
   tool('remove_clips', {
-    title: 'Remove playlist clips',
-    description: 'Remove clips from the playlist. Filters combine (AND): clipIds, pattern, track, and a bar range (clips that START in bars fromBar..toBar, both inclusive). all=true removes every clip and cannot be combined with filters.',
+    title: '删除播放列表片段块',
+    description: '从播放列表里删片段块。几个条件是「与」的关系：clipIds、pattern、track，以及小节范围（只算起点落在 fromBar..toBar 内的片段块，两端都算）。all=true 会全部删掉，不能再配其它条件。',
     inputSchema: {
       projectId: projectIdArg,
       clipIds: z.array(z.string()).optional(),
       pattern: z.string().optional(),
       track: z.number().int().min(1).max(MAX_TRACKS).optional(),
-      fromBar: z.number().int().min(1).optional().describe('First bar of the range (inclusive)'),
-      toBar: z.number().int().min(1).optional().describe('Last bar of the range (inclusive)'),
+      fromBar: z.number().int().min(1).optional().describe('范围起始小节（含）'),
+      toBar: z.number().int().min(1).optional().describe('范围结束小节（含）'),
       all: z.boolean().optional()
     },
     annotations: A.destructive
@@ -207,14 +207,14 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('copy_bars', {
-    title: 'Copy a section of the song',
-    description: 'Copy a section of the arrangement — everything playing in bars fromBar..toBar (both inclusive) — to another position, e.g. repeat the hook (bars 9–16) at bar 33. Clips are cut to the range, so long clips copy only the part inside it. Clips keep their tracks.',
+    title: '复制一段编曲',
+    description: '把编曲里 fromBar..toBar（两端都算）这一整段在响的东西复制到别的位置，例如把副歌（第 9–16 小节）复制到第 33 小节。片段块会按范围裁切，所以长片段块只复制落在范围内的那部分。轨道保持不变。',
     inputSchema: {
       projectId: projectIdArg,
-      fromBar: z.number().int().min(1).describe('First bar to copy'),
-      toBar: z.number().int().min(1).describe('Last bar to copy (inclusive)'),
-      toPosition: z.number().int().min(1).describe('Bar where the copy starts'),
-      times: z.number().int().min(1).max(32).optional().describe('Number of copies placed back to back (default 1)')
+      fromBar: z.number().int().min(1).describe('要复制的起始小节'),
+      toBar: z.number().int().min(1).describe('要复制的结束小节（含）'),
+      toPosition: z.number().int().min(1).describe('复制件从第几小节开始放'),
+      times: z.number().int().min(1).max(32).optional().describe('前后相接放几份（默认 1）')
     },
     annotations: A.edit
   }, async ({ projectId, fromBar, toBar, toPosition, times = 1 }) => {
@@ -242,8 +242,8 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('update_track', {
-    title: 'Update playlist track',
-    description: 'Rename, recolor or mute a playlist track (1-based).',
+    title: '修改播放列表轨道',
+    description: '给播放列表轨道改名、改颜色或静音（轨道号从 1 开始）。',
     inputSchema: {
       projectId: projectIdArg,
       track: z.number().int().min(1).max(MAX_TRACKS),
@@ -268,21 +268,21 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
 
   // ---------------------------------------------------------------- automation
   tool('add_automation', {
-    title: 'Add automation clip',
-    description: 'Automate a parameter over time with an automation clip in the playlist (song mode). Targets: channel (volume|pan|pitch|filterCutoff|filterRes), mixer insert (volume|pan), effect (automatable param, e.g. filter cutoff, reverb mix, delay feedback), master (volume|pan). Point values are 0..1 across the parameter range (filterCutoff is log-scaled: 0 = 20 Hz, 0.5 ≈ 630 Hz, 1 = 20 kHz; pan 0.5 = center; pitch 0.5 = no shift; volume: 0.8 = unity gain (0 dB), 0.64 = the default insert fader, 0.62 ≈ the default channel volume, 1 = +1.9 dB).',
+    title: '添加自动化曲线',
+    description: '用播放列表里的自动化曲线让某个参数随时间变化（歌曲模式）。可针对：通道（volume｜pan｜pitch｜filterCutoff｜filterRes）、混音台通道条（volume｜pan）、效果器（能自动化的参数，例如滤波截止、混响干湿、延迟反馈量）、主输出（volume｜pan）。关键帧的取值是 0..1，对应参数整个范围（filterCutoff 按对数分布：0＝20 Hz，0.5≈630 Hz，1＝20 kHz；pan 0.5＝居中；pitch 0.5＝不移调；volume：0.8＝单位增益 0 dB，0.64＝通道条默认推子，0.62≈通道默认音量，1＝+1.9 dB）。',
     inputSchema: {
       projectId: projectIdArg,
       name: z.string().max(64).optional(),
       target: z.object({
         type: z.enum(['channel', 'mixer', 'effect', 'master']),
-        channel: z.string().optional().describe('For type=channel: channel id or name'),
-        insert: z.number().int().min(0).optional().describe('For type=mixer/effect'),
-        effectId: z.string().optional().describe('For type=effect: effect id (or type)'),
+        channel: z.string().optional().describe('type=channel 时用：通道 id 或名字'),
+        insert: z.number().int().min(0).optional().describe('type=mixer／effect 时用：通道条号'),
+        effectId: z.string().optional().describe('type=effect 时用：效果器 id（或类型名）'),
         param: z.string()
       }),
-      points: z.array(z.object({ bar: z.number().min(0).describe('Position in bars from the clip start (0-based, fractional ok)'), value: z.number().min(0).max(1) })).min(1).max(512),
-      startBar: z.number().min(1).describe('1-based bar where the automation clip starts'),
-      bars: z.number().positive().optional().describe('Clip length in bars (default: up to the last point)'),
+      points: z.array(z.object({ bar: z.number().min(0).describe('从自动化曲线开头算起的位置（0 起算，可带小数）'), value: z.number().min(0).max(1) })).min(1).max(512),
+      startBar: z.number().min(1).describe('自动化曲线起始小节（从 1 开始）'),
+      bars: z.number().positive().optional().describe('曲线长度，单位小节（默认到最后一个关键帧为止）'),
       track: z.number().int().min(1).max(MAX_TRACKS).optional()
     },
     annotations: A.edit
@@ -321,11 +321,11 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('update_automation', {
-    title: 'Update automation',
-    description: 'Change an automation curve (points replace the old ones), its length or name. Changing bars also resizes its playlist clips that were the full automation length.',
+    title: '修改自动化',
+    description: '改一条自动化曲线（新的关键帧会替换旧的）、它的长度或名字。改 bars 时，播放列表里那些「整条自动化」长度的块也会跟着改长度。',
     inputSchema: {
       projectId: projectIdArg,
-      automation: z.string().describe('Automation id or name'),
+      automation: z.string().describe('自动化 id 或名字'),
       name: z.string().max(64).optional(),
       points: z.array(z.object({ bar: z.number().min(0), value: z.number().min(0).max(1) })).min(1).max(512).optional(),
       bars: z.number().positive().optional()
@@ -353,8 +353,8 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('remove_automation', {
-    title: 'Remove automation',
-    description: 'Delete an automation and its playlist clips.',
+    title: '删除自动化',
+    description: '删掉一条自动化以及它在播放列表里的块。',
     inputSchema: { projectId: projectIdArg, automation: z.string() },
     annotations: A.destructive
   }, async ({ projectId, automation }) => {
@@ -366,12 +366,12 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
 
   // ---------------------------------------------------------------- transport / export
   tool('play', {
-    title: 'Play',
-    description: "Start playback in the user's browser. mode \"pattern\" loops one pattern; mode \"song\" plays the playlist arrangement.",
+    title: '播放',
+    description: '在用户的浏览器里开始播放。mode 用 "pattern" 循环某一个片段；用 "song" 播放播放列表的编曲。',
     inputSchema: {
       projectId: projectIdArg,
-      mode: z.enum(['pattern', 'song']).optional().describe('Default: song if the playlist has clips, else pattern'),
-      pattern: z.string().optional().describe('Pattern to loop in pattern mode (default: first pattern)'),
+      mode: z.enum(['pattern', 'song']).optional().describe('默认：播放列表里有片段就整首，否则单片段'),
+      pattern: z.string().optional().describe('单片段模式下要循环的片段（默认第一个）'),
       fromBar: z.number().min(1).optional()
     },
     annotations: A.edit
@@ -385,8 +385,8 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('stop', {
-    title: 'Stop',
-    description: 'Stop playback in the browser.',
+    title: '停止',
+    description: '在浏览器里停止播放。',
     inputSchema: { projectId: projectIdArg },
     annotations: A.edit
   }, async ({ projectId }) => {
@@ -396,8 +396,8 @@ export function registerArrangeTools({ tool, backend, load, resolveProjectId }) 
   });
 
   tool('export_midi', {
-    title: 'Export MIDI',
-    description: 'Export the song (or one pattern) as a .mid file into the user\'s exports. Returns a download URL. For audio use render_mix with save=true.',
+    title: '导出 MIDI',
+    description: '把整首（或某一个片段）导出成 .mid 文件，存进用户的导出目录，返回下载链接。要出音频请用 render_mix 并设 save=true。',
     inputSchema: { projectId: projectIdArg, mode: z.enum(['song', 'pattern']).optional(), pattern: z.string().optional() },
     annotations: { ...A.edit, idempotentHint: true }
   }, async ({ projectId, mode = 'song', pattern }) => {

@@ -164,3 +164,25 @@ test('reset-password CLI sets a new password and ends sessions', async () => {
   assert.ok(await fresh.authenticate('forgetful', 'brand-new-pass-2'));
   assert.equal(await fresh.authenticate('forgetful', 'old-password-1'), null);
 });
+
+test('open mode (the default): status reports authDisabled and teacher is seeded — even over an existing user store', async () => {
+  const open = await startServer({ DISABLE_AUTH: 'true' });
+  try {
+    const a = agent(open.base);
+    const st = await a.get('/api/auth/status');
+    assert.equal(st.body.authDisabled, true);
+    assert.equal(st.body.setupRequired, false);
+    assert.equal((await a.post('/api/auth/login', { username: 'teacher', password: 'music2026' })).status, 200);
+    const me = await a.get('/api/auth/status');
+    assert.equal(me.body.user.username, 'teacher');
+    // the seeded teacher owns at least one project, so the studio has something to open right away
+    assert.ok((await a.get('/api/projects')).body.length >= 1);
+    // a store with other accounts as well is fine: creating another admin doesn't clash with the seed
+    assert.ok([200, 201].includes((await a.post('/api/admin/users', { username: 'second', password: 'second-pass-1' })).status));
+    // the seed landed on disk: an open-mode reboot over this store will always be able to log in as teacher
+    const { UserStore } = await import('../src/auth/users.js');
+    assert.ok(await (await new UserStore(open.dataDir).init()).authenticate('teacher', 'music2026'));
+  } finally {
+    await open.close();
+  }
+});

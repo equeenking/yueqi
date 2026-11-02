@@ -70,7 +70,7 @@ test('add_chords voicings and register; add_bassline degree lines with slides', 
   assert.deepEqual(bass.filter((n) => n.start < 384).map((n) => n.key), [45, 45, 57, 52]); // A2 A2 A3 E3
   assert.equal(bass.find((n) => n.start === 6 * STEP).length, 4 * STEP + STEP / 2); // slide overlaps the next note
   await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: ['Am'], line: 'R:4', rhythm: 'x---' }), /either rhythm or line/);
-  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: ['Am'], line: 'Z:4' }), /Invalid bass token/);
+  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: ['Am'], line: 'Z:4' }), /贝斯记号/);
 });
 
 test('groove: update_channel nudge/swingMix and apply_groove presets', async () => {
@@ -104,10 +104,10 @@ test('groove: update_channel nudge/swingMix and apply_groove presets', async () 
 });
 
 test('bass lines and generators are bounded before any notes are generated', async () => {
-  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: ['Am'], line: 'R:0.001' }), /at least 0.5 steps/);
-  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: Array(256).fill('Am'), stepsPerChord: 1024, line: 'R:1' }), /at most 64 bars/);
-  await fails(call('add_chords', { pattern: 'Music', channel: 'Keys', chords: Array(256).fill('Am'), stepsPerChord: 1024, style: 'arp-up', arpRate: 0.25 }), /at most 64 bars/);
-  await fails(call('add_roll', { pattern: 'Music', channel: 'Hat', start: 0, length: 2048 }), /at most 64 bars/);
+  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: ['Am'], line: 'R:0.001' }), /至少 0.5 步/);
+  await fails(call('add_bassline', { pattern: 'Music', channel: '808', chords: Array(256).fill('Am'), stepsPerChord: 1024, line: 'R:1' }), /片段最长 64 小节/);
+  await fails(call('add_chords', { pattern: 'Music', channel: 'Keys', chords: Array(256).fill('Am'), stepsPerChord: 1024, style: 'arp-up', arpRate: 0.25 }), /片段最长 64 小节/);
+  await fails(call('add_roll', { pattern: 'Music', channel: 'Hat', start: 0, length: 2048 }), /片段最长 64 小节/);
   assert.equal((await user.get('/api/health')).status, 200);
 });
 
@@ -129,17 +129,17 @@ test('pump sidechain source by channel name', async () => {
   await call('update_effect', { insert: 4, effectId: 'pump', params: { source: null } });
   p = await project();
   assert.equal(p.mixer[4].effects.find((e) => e.type === 'pump').params.source, null);
-  await fails(call('update_effect', { insert: 4, effectId: 'pump', params: { source: 'Nope' } }), /Channel "Nope" not found/);
-  await fails(call('update_effect', { insert: 4, effectId: 'pump', params: { depth: 3 } }), /between 0 and 1/);
+  await fails(call('update_effect', { insert: 4, effectId: 'pump', params: { source: 'Nope' } }), /找不到通道「Nope」/);
+  await fails(call('update_effect', { insert: 4, effectId: 'pump', params: { depth: 3 } }), /0 到 1 之间/);
 });
 
 test('markers: arrange_song names sections; set_markers adds, removes and clears', async () => {
   await call('arrange_song', { sections: [{ name: 'Intro', bars: 4, patterns: ['Music'] }, { name: 'Hook', bars: 8, patterns: ['Drums', 'Music'] }, { bars: 4, patterns: ['Drums'] }] });
   let p = await project();
   assert.deepEqual(p.markers.map((m) => [m.name, m.tick / ticksPerBar(p) + 1]), [['Intro', 1], ['Hook', 5]]);
-  assert.match(await call('set_markers', { add: [{ bar: 13, name: 'Outro' }], remove: ['Intro'] }), /Hook @ bar 5 .* Outro @ bar 13/);
+  assert.match(await call('set_markers', { add: [{ bar: 13, name: 'Outro' }], remove: ['Intro'] }), /Hook @ 第 5 小节 .* Outro @ 第 13 小节/);
   assert.match(await call('get_project', {}), /MARKERS: Hook @ bar 5/);
-  await fails(call('set_markers', { remove: ['Bridge'] }), /Marker "Bridge" not found/);
+  await fails(call('set_markers', { remove: ['Bridge'] }), /找不到标记「Bridge」/);
   await call('set_markers', { clear: true });
   p = await project();
   assert.equal(p.markers.length, 0);
@@ -154,7 +154,7 @@ test('add_transition: riser ends on the downbeat with sweeps; impact; validation
   let p = await project();
   const bar = ticksPerBar(p);
   const riser = chan(p, 'Riser');
-  assert.ok(riser && riser.instrument.preset === 'Riser Noise');
+  assert.ok(riser && riser.instrument.preset === '上扬噪声');
   const rp = pat(p, 'Riser 4 bars');
   const clip = p.playlist.clips.find((c) => c.refId === rp.id);
   assert.equal(clip.start, 4 * bar);
@@ -210,7 +210,7 @@ test('add_fill: styles, copies by default, in place on request', async () => {
   const before = (await project()).patterns.length;
   await call('add_fill', { pattern: 'Drums Fill', style: 'hat_roll', inPlace: true });
   assert.equal((await project()).patterns.length, before);
-  await fails(call('add_fill', { pattern: 'Drums', style: 'snare_roll', name: 'Gap' }), /already exists/);
+  await fails(call('add_fill', { pattern: 'Drums', style: 'snare_roll', name: 'Gap' }), /已有同名/);
 });
 
 test('audio clips: gain, fades, repitch to the project tempo; audio-only fields', async () => {
@@ -346,7 +346,7 @@ test('roles from sample-file names; melody typos; slides never add a bar', async
   const { roleOf } = await import('../src/mcp/tools/production.js');
   const cases = { Snare_Tight: 'snare', Snare2: 'snare', HH_Closed: 'hat', OpenHat_03: 'hat', Clap_808: 'snare', '808_Sub': 'bass', Perc_Loop_1: 'perc', 'Phat Bass': 'bass', Primary: 'other', 'Oh Yeah Vox': 'other', OH: 'hat', Kick_01: 'kick' };
   for (const [name, want] of Object.entries(cases)) assert.equal(roleOf({ name, instrument: { kind: 'sampler' } }), want, name);
-  await fails(call('write_melody', { pattern: 'Music', channel: 'Keys', melody: 'C5:2 D5:x' }), /Invalid melody token "D5:x"/);
+  await fails(call('write_melody', { pattern: 'Music', channel: 'Keys', melody: 'C5:2 D5:x' }), /旋律记号「D5:x」/);
   const { bassLineFromChords } = await import('@greanteadawy/core');
   const notes = bassLineFromChords(['Am', 'F'], 'R:14 5:2~', { chordLength: 384 });
   assert.ok(Math.max(...notes.map((n) => n.start + n.length)) <= 768);
@@ -355,10 +355,10 @@ test('roles from sample-file names; melody typos; slides never add a bar', async
 
 test('list_instruments: grouped by collection; category narrows it; kind wins over category', async () => {
   const all = await call('list_instruments', {});
-  for (const section of ['Drums', 'Flutes', 'Beatbox', 'Indian', 'East Asian']) assert.match(all, new RegExp(`^## ${section}$`, 'm'));
+  for (const section of ['鼓组', '吹管', '人声节奏', '印度乐器', '中国与东亚民乐']) assert.match(all, new RegExp(`^## ${section}$`, 'm'));
   const indian = await call('list_instruments', { category: 'indian' });
-  assert.match(indian, /^tabla \(/m);
-  assert.doesNotMatch(indian, /^kick \(|^## Drums$/m);
+  assert.match(indian, /^tabla（/m);
+  assert.doesNotMatch(indian, /^kick \(|^## 鼓组$/m);
   const tabla = await call('list_instruments', { kind: 'tabla', category: 'drums' });
   assert.match(tabla, /"stroke"/);
   await fails(call('list_instruments', { category: 'nope' }), /category/);

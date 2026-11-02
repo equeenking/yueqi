@@ -15,14 +15,14 @@ import { httpError } from './errors.js';
  * lossless ones keep the WAV's bit depth.
  */
 export const EXPORT_FORMATS = {
-  wav: { label: 'WAV', ext: 'wav', native: true, lossless: true, description: 'Uncompressed PCM, 16-bit (dithered) or 24-bit — rendered in the browser, no ffmpeg needed' },
-  mp3: { label: 'MP3', ext: 'mp3', encoders: ['libmp3lame'], muxer: 'mp3', maxChannels: 2, bitrates: [128, 160, 192, 256, 320], defaultBitrate: 320, description: 'Plays everywhere; lossy (LAME, constant bitrate)' },
-  aac: { label: 'AAC (.m4a)', ext: 'm4a', encoders: ['libfdk_aac', 'aac'], muxer: 'ipod', maxChannels: 8, bitrates: [128, 192, 256, 320], defaultBitrate: 256, description: 'Apple/streaming lossy format, better than MP3 at the same bitrate' },
-  ogg: { label: 'Ogg Vorbis', ext: 'ogg', encoders: ['libvorbis'], muxer: 'ogg', maxChannels: 6, bitrates: [128, 160, 192, 256, 320], defaultBitrate: 192, description: 'Open lossy format (games, web)' },
-  opus: { label: 'Opus', ext: 'opus', encoders: ['libopus'], muxer: 'opus', maxChannels: 8, bitrates: [64, 96, 128, 160, 192, 256], defaultBitrate: 160, description: 'Most efficient lossy format (web, voice/music); 48 kHz' },
-  flac: { label: 'FLAC', ext: 'flac', encoders: ['flac'], muxer: 'flac', maxChannels: 8, lossless: true, description: 'Lossless, about half the size of WAV; keeps 16/24-bit' },
-  alac: { label: 'Apple Lossless (.m4a)', ext: 'm4a', suffix: '-alac', encoders: ['alac'], muxer: 'ipod', maxChannels: 7, lossless: true, description: 'Lossless for Apple Music/iTunes; keeps 16/24-bit' },
-  aiff: { label: 'AIFF', ext: 'aiff', encoders: ['pcm_s24be', 'pcm_s16be'], muxer: 'aiff', lossless: true, description: 'Uncompressed PCM (Logic, Pro Tools, older Macs)' }
+  wav: { label: 'WAV', ext: 'wav', native: true, lossless: true, description: '未压缩 PCM，16 位（加抖动）或 24 位——浏览器直接渲染，不需要 ffmpeg' },
+  mp3: { label: 'MP3', ext: 'mp3', encoders: ['libmp3lame'], muxer: 'mp3', maxChannels: 2, bitrates: [128, 160, 192, 256, 320], defaultBitrate: 320, description: '哪儿都能放；有损压缩（LAME，固定码率）' },
+  aac: { label: 'AAC (.m4a)', ext: 'm4a', encoders: ['libfdk_aac', 'aac'], muxer: 'ipod', maxChannels: 8, bitrates: [128, 192, 256, 320], defaultBitrate: 256, description: '苹果与流媒体常用的有损格式，同码率下比 MP3 好' },
+  ogg: { label: 'Ogg Vorbis', ext: 'ogg', encoders: ['libvorbis'], muxer: 'ogg', maxChannels: 6, bitrates: [128, 160, 192, 256, 320], defaultBitrate: 192, description: '开放的有损格式（游戏、网页常用）' },
+  opus: { label: 'Opus', ext: 'opus', encoders: ['libopus'], muxer: 'opus', maxChannels: 8, bitrates: [64, 96, 128, 160, 192, 256], defaultBitrate: 160, description: '效率最高的有损格式（网页、语音与音乐）；48 kHz' },
+  flac: { label: 'FLAC', ext: 'flac', encoders: ['flac'], muxer: 'flac', maxChannels: 8, lossless: true, description: '无损，体积约为 WAV 的一半；保留 16／24 位' },
+  alac: { label: 'Apple Lossless (.m4a)', ext: 'm4a', suffix: '-alac', encoders: ['alac'], muxer: 'ipod', maxChannels: 7, lossless: true, description: 'Apple Music／iTunes 用的无损格式；保留 16／24 位' },
+  aiff: { label: 'AIFF', ext: 'aiff', encoders: ['pcm_s24be', 'pcm_s16be'], muxer: 'aiff', lossless: true, description: '未压缩 PCM（Logic、Pro Tools、老款 Mac 常用）' }
 };
 export const FORMAT_IDS = Object.keys(EXPORT_FORMATS);
 export const EXPORT_EXTENSIONS = [...new Set(Object.values(EXPORT_FORMATS).map((f) => f.ext))];
@@ -77,13 +77,24 @@ export async function readWavInfo(file) {
   }
 }
 
+/**
+ * Windows 不认 shebang，也不能直接跑 .cmd/.bat（EFTYPE / EINVAL），所以 FFMPEG_PATH 指向 JS 脚本时
+ * 交给 node 去执行。参数依然是一个数组、依然不开 shell——安全性不变。
+ */
+function spawnFfmpeg(bin, args, opts) {
+  if (process.platform === 'win32' && /\.(?:c|m)?js$/i.test(bin)) {
+    return spawn(process.execPath, [bin, ...args], opts);
+  }
+  return spawn(bin, args, opts);
+}
+
 function run(bin, args, { timeoutMs, maxOutput = 1 << 20 } = {}) {
   return new Promise((resolve, reject) => {
     const env = {};
     for (const k of SAFE_ENV_KEYS) if (process.env[k] !== undefined) env[k] = process.env[k];
     let child;
     try {
-      child = spawn(bin, args, { shell: false, windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawnFfmpeg(bin, args, { shell: false, windowsHide: true, env, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       reject(e);
       return;
@@ -94,13 +105,13 @@ function run(bin, args, { timeoutMs, maxOutput = 1 << 20 } = {}) {
     child.stderr.on('data', (d) => { if (err.length < 8192) err += d; });
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
-      reject(Object.assign(new Error(`ffmpeg took longer than ${Math.round(timeoutMs / 1000)} s and was stopped`), { code: 'ETIMEDOUT' }));
+      reject(Object.assign(new Error(`ffmpeg 跑了超过 ${Math.round(timeoutMs / 1000)} 秒还没结束，已被中止`), { code: 'ETIMEDOUT' }));
     }, timeoutMs);
     child.on('error', (e) => { clearTimeout(timer); reject(e); });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve({ out, err });
-      else reject(Object.assign(new Error(err.trim().split('\n').slice(-3).join(' ') || `ffmpeg exited with code ${code}`), { code: 'EFFMPEG' }));
+      else reject(Object.assign(new Error(err.trim().split('\n').slice(-3).join(' ') || `ffmpeg 退出码 ${code}`), { code: 'EFFMPEG' }));
     });
   });
 }
@@ -119,7 +130,7 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
   const queued = new Map(); // owner → conversions running or waiting
 
   async function detect() {
-    if (disabled) return { available: false, disabled: true, reason: 'Disabled by FFMPEG_PATH=off', encoders: [] };
+    if (disabled) return { available: false, disabled: true, reason: '已用 FFMPEG_PATH=off 关闭', encoders: [] };
     try {
       const v = await run(bin, ['-hide_banner', '-version'], { timeoutMs: 10000 });
       const version = /ffmpeg version (\S+)/.exec(v.out)?.[1] || 'unknown';
@@ -131,8 +142,9 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
     } catch (err) {
       // (no configured path in the message: it is shown to every signed-in user)
       const reason = err.code === 'ENOENT'
-        ? (configured ? 'the program FFMPEG_PATH points to was not found' : 'ffmpeg is not installed or not on the PATH')
-        : `ffmpeg failed to start (${err.code || 'error'})`;
+        ? (configured ? 'FFMPEG_PATH 指向的程序找不到' : '没装 ffmpeg，或者它不在 PATH 里')
+        : `ffmpeg 启动失败（${err.code || 'error'}）`
+          + (process.platform === 'win32' && ['EFTYPE', 'EINVAL'].includes(err.code) ? '；Windows 上 FFMPEG_PATH 要指向 .exe 程序' : '');
       return { available: false, reason, encoders: [] };
     }
   }
@@ -156,7 +168,7 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
         id, label: f.label, ext: f.ext, lossless: !!f.lossless, description: f.description,
         available: f.native || (st.available && !!encoder), encoder,
         ...(f.bitrates ? { bitrates: f.bitrates, defaultBitrate: f.defaultBitrate } : {}),
-        ...(!f.native && !st.available ? { reason: st.reason } : !f.native && !encoder ? { reason: `this ffmpeg has no ${f.encoders.join('/')} encoder` } : {})
+        ...(!f.native && !st.available ? { reason: st.reason } : !f.native && !encoder ? { reason: `这个 ffmpeg 没有 ${f.encoders.join('/')} 编码器` } : {})
       };
     });
   }
@@ -178,7 +190,7 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
    */
   async function convert({ owner = null, ...job }) {
     // one user can't fill the queue: counted before anything else happens (no await before this)
-    if (owner && (queued.get(owner) || 0) >= MAX_QUEUED_PER_USER) throw httpError(429, 'Too many conversions waiting — try again when the current ones have finished');
+    if (owner && (queued.get(owner) || 0) >= MAX_QUEUED_PER_USER) throw httpError(429, '排队等待的转换太多了——等当前这几个做完再试');
     if (owner) queued.set(owner, (queued.get(owner) || 0) + 1);
     try {
       return await convertNow(job);
@@ -193,25 +205,25 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
 
   async function convertNow({ input, format, bitrate, metadata = {} }) {
     const f = Object.hasOwn(EXPORT_FORMATS, format) ? EXPORT_FORMATS[format] : null;
-    if (!f) throw httpError(400, `Unknown format "${format}". Formats: ${FORMAT_IDS.join(', ')}`);
-    if (f.native) throw httpError(400, 'WAV is rendered directly — no conversion needed');
+    if (!f) throw httpError(400, `不支持的格式「${format}」。可用：${FORMAT_IDS.join('、')}`);
+    if (f.native) throw httpError(400, 'WAV 由浏览器直接渲染，不需要转换');
     const st = await status();
-    if (!st.available) throw httpError(409, `ffmpeg is not available (${st.reason}). Install ffmpeg or set FFMPEG_PATH; WAV export still works.`);
+    if (!st.available) throw httpError(409, `ffmpeg 不可用（${st.reason}）。装一下 ffmpeg 或设置 FFMPEG_PATH；WAV 导出照样能用。`);
     const encoder = f.encoders.find((x) => st.encoders.includes(x));
-    if (!encoder) throw httpError(409, `This ffmpeg build has no encoder for ${f.label} (${f.encoders.join(' or ')})`);
+    if (!encoder) throw httpError(409, `这个 ffmpeg 没有 ${f.label} 的编码器（需要 ${f.encoders.join(' 或 ')}）`);
     let kbps = null;
     if (f.bitrates) {
       kbps = bitrate === undefined || bitrate === null ? f.defaultBitrate : Number(bitrate);
-      if (!f.bitrates.includes(kbps)) throw httpError(400, `${f.label} bitrate must be one of ${f.bitrates.join(', ')} kbps`);
+      if (!f.bitrates.includes(kbps)) throw httpError(400, `${f.label} 的码率只能是 ${f.bitrates.join('、')} kbps`);
     }
     const info = await readWavInfo(input);
-    if (!info) throw httpError(400, 'Only PCM/float WAV renders can be converted');
+    if (!info) throw httpError(400, '只有 PCM／浮点 WAV 才能转换');
     if (f.maxChannels && info.channels > f.maxChannels) {
-      throw httpError(422, `${f.label} holds at most ${f.maxChannels} channel${f.maxChannels > 1 ? 's' : ''}; this render has ${info.channels}. Use ${info.channels <= 8 ? 'FLAC, ' : ''}WAV or AIFF for it${f.maxChannels === 2 ? ', or a stereo/binaural render' : ''}.`);
+      throw httpError(422, `${f.label} 最多 ${f.maxChannels} 个声道，这个音频有 ${info.channels} 个；请用 ${info.channels <= 8 ? 'FLAC、' : ''}WAV 或 AIFF${f.maxChannels === 2 ? '，或者渲染成立体声／双耳版本' : ''}。`);
     }
     // lossy surround codecs need known speaker positions (5.1, 7.1); ADM/object renders have none: lossless only
     if (!f.lossless && info.channels > 2 && !info.mask) {
-      throw httpError(422, `This WAV has ${info.channels} channels without speaker positions (an ADM/object render): only FLAC (≤ 8 channels), Apple Lossless (≤ 7) or AIFF keep them.`);
+      throw httpError(422, `这个 WAV 有 ${info.channels} 个声道但没有声道位置信息（ADM／对象渲染）：只有 FLAC（≤ 8 声道）、Apple Lossless（≤ 7）或 AIFF 能保留。`);
     }
     const bits = info.bitsPerSample >= 24 ? 24 : 16;
     // the input's own PCM decoder, forced: ffmpeg never probes or picks a decoder from user data
@@ -246,7 +258,7 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
           if (e.code !== 'EEXIST') throw e;
         }
       }
-      if (!out) throw httpError(409, 'Too many exports with that name');
+      if (!out) throw httpError(409, '同名的导出文件太多了');
       outPath = path.join(dir, out);
       const args = [
         '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
@@ -257,14 +269,14 @@ export function createFfmpeg({ path: configured = '', timeoutSec = 300, maxJobs 
       ];
       await run(bin, args, { timeoutMs: timeoutSec * 1000 });
       const { size } = await fs.stat(outPath);
-      if (!size) throw new Error('ffmpeg wrote an empty file');
+      if (!size) throw new Error('ffmpeg 写出了一个空文件');
       return { name: out, path: outPath, bytes: size, format, encoder: codec[1], ...(kbps ? { bitrate: kbps } : { bitDepth: format === 'opus' ? null : bits }) };
     } catch (e) {
       if (outPath) await fs.rm(outPath, { force: true }).catch(() => {});
       if (e.status) throw e;
       // ffmpeg's own message, without the server's folder names
       const msg = String(e.message || e).split(dir + path.sep).join('').split(dir).join('').replace(/file:/g, '').slice(0, 300);
-      throw httpError(e.code === 'ETIMEDOUT' ? 504 : 422, `Conversion to ${f.label} failed: ${msg}`);
+      throw httpError(e.code === 'ETIMEDOUT' ? 504 : 422, `转成 ${f.label} 失败：${msg}`);
     } finally {
       if (started) release();
     }

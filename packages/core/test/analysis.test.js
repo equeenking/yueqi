@@ -176,5 +176,5 @@ test('16-bit WAV is dithered (reproducibly), 24-bit and dither:false are exact',
   const back = decodeWav(a).channels[0];
   assert.ok(back.some((x) => x !== 0), 'dither keeps very quiet signals alive');
   assert.ok(decodeWav(encodeWav([quiet], SR, { dither: false })).channels[0].every((x) => x === 0));
-  assert.throws(() => encodeWav([quiet], SR, { bitDepth: 8 }), /16 or 24/);
+  assert.throws(() => encodeWav([quiet], SR, { bitDepth: 8 }), /16[^\d]+24/);
 });

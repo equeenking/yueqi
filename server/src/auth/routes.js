@@ -35,6 +35,7 @@ export function createAuthRouter({ users, sessions, auth, store, samples, hub, o
       setupRequired: users.count() === 0,
       setupCodeRequired: !!setupCode && users.count() === 0 && !isLocal(req),
       user: publicUser(a?.user || null),
+      authDisabled: !!auth.disabled,
       allowRegistration: !!users.settings.allowRegistration,
       mcpWithoutToken: !!users.settings.mcpWithoutToken
     };

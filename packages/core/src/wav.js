@@ -9,7 +9,7 @@ export function decodeWav(input, { maxSeconds = Infinity } = {}) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const tag = (o) => String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
-  if (bytes.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('Not a WAV file');
+  if (bytes.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('不是 WAV 文件');
   let pos = 12;
   let fmt = null;
   let data = null;
@@ -29,11 +29,11 @@ export function decodeWav(input, { maxSeconds = Infinity } = {}) {
     }
     pos = body + size + (size % 2);
   }
-  if (!fmt || !data) throw new Error('WAV is missing fmt or data chunk');
+  if (!fmt || !data) throw new Error('WAV 缺少 fmt 或 data 数据块');
   const { formatTag, channels, sampleRate, bitsPerSample } = fmt;
   const isFloat = formatTag === 3;
-  if (!(formatTag === 1 || isFloat)) throw new Error(`Unsupported WAV encoding (format tag ${formatTag})`);
-  if (!channels || !sampleRate) throw new Error('Invalid WAV header');
+  if (!(formatTag === 1 || isFloat)) throw new Error(`不支持的 WAV 编码（格式代号 ${formatTag}）`);
+  if (!channels || !sampleRate) throw new Error('WAV 文件头无效');
   const bps = bitsPerSample / 8;
   const totalFrames = Math.floor(data.size / (bps * channels));
   const frames = Math.min(totalFrames, Number.isFinite(maxSeconds) ? Math.floor(maxSeconds * sampleRate) : totalFrames);
@@ -50,7 +50,7 @@ export function decodeWav(input, { maxSeconds = Infinity } = {}) {
         v = x / 8388608;
       } else if (bitsPerSample === 32) v = view.getInt32(o, true) / 2147483648;
       else if (bitsPerSample === 8) v = (bytes[o] - 128) / 128;
-      else throw new Error(`Unsupported WAV bit depth ${bitsPerSample}`);
+      else throw new Error(`不支持的 WAV 位深 ${bitsPerSample}`);
       out[c][i] = v;
       o += bps;
     }
@@ -67,7 +67,7 @@ export function decodeWav(input, { maxSeconds = Infinity } = {}) {
  * (Broadcast Wave `bext`, ADM `chna`/`axml`). Returns a Uint8Array.
  */
 export function encodeWav(channels, sampleRate, { bitDepth = 16, dither = bitDepth === 16, seed = 0, channelMask, chunks = [] } = {}) {
-  if (bitDepth !== 16 && bitDepth !== 24) throw new Error('bitDepth must be 16 or 24');
+  if (bitDepth !== 16 && bitDepth !== 24) throw new Error('位深必须是 16 或 24');
   const ch = channels.length;
   const len = channels[0]?.length || 0;
   const bytes = bitDepth / 8;
@@ -76,7 +76,7 @@ export function encodeWav(channels, sampleRate, { bitDepth = 16, dither = bitDep
   const fmtSize = extensible ? 40 : 16;
   const extra = chunks.reduce((a, c) => a + 8 + c.data.length + (c.data.length % 2), 0);
   const head = 12 + 8 + fmtSize + extra + 8;
-  if (head + dataSize > 0xffffffff) throw new Error('WAV would exceed 4 GB: render a shorter part or fewer channels');
+  if (head + dataSize > 0xffffffff) throw new Error('WAV 会超过 4 GB：请渲染短一些的段落，或减少声道数');
   const pad = dataSize % 2; // RIFF chunks are word-aligned (odd sizes: 24-bit mono with an odd frame count)
   const buf = new Uint8Array(head + dataSize + pad);
   const v = new DataView(buf.buffer);

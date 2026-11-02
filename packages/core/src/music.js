@@ -31,7 +31,7 @@ export function parseNote(input, defaultOctave = 4) {
   const s = String(input).trim();
   if (/^-?\d+$/.test(s)) return clampMidi(parseInt(s, 10));
   const m = /^([A-Ga-g][#b♯♭x]*)(-?\d+)?$/.exec(s);
-  if (!m) throw new Error(`Invalid note "${input}". Use names like C4, F#3, Bb2 or MIDI numbers (C4 = 60).`);
+  if (!m) throw new Error(`音名不对：「${input}」。写成 C4、F#3、Bb2 这样，或者 MIDI 音高数字（C4 = 60）。`);
   const pc = parsePitchClass(m[1]);
   const octave = m[2] !== undefined ? parseInt(m[2], 10) : defaultOctave;
   // Use the letter's natural octave so that e.g. B#3 = C4 and Cb4 = B3
@@ -42,7 +42,7 @@ export function parseNote(input, defaultOctave = 4) {
 }
 
 function clampMidi(n) {
-  if (n < 0 || n > 127) throw new Error(`Note ${n} is outside MIDI range 0..127`);
+  if (n < 0 || n > 127) throw new Error(`音高 ${n} 超出 MIDI 范围 0..127`);
   return n;
 }
 
@@ -77,12 +77,41 @@ export const SCALES = {
   chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 };
 
+
+/** 音阶的中文显示名（值仍是上面的英文标识，存档依赖它）。 */
+export const SCALE_LABELS = {
+  major: '大调（伊奥尼亚）',
+  minor: '小调（爱奥利亚）',
+  harmonicMinor: '和声小调',
+  melodicMinor: '旋律小调',
+  dorian: '多利亚调式',
+  phrygian: '弗里吉亚调式',
+  lydian: '利底亚调式',
+  mixolydian: '混合利底亚调式',
+  locrian: '洛克里亚调式',
+  majorPentatonic: '大调五声音阶',
+  minorPentatonic: '小调五声音阶',
+  blues: '布鲁斯音阶',
+  hirajoshi: '平调子（日本）',
+  inSen: '阴旋音阶（日本）',
+  iwato: '岩户音阶（日本）',
+  yo: '阳音阶（日本）',
+  bhairav: '拜拉夫（印度）',
+  todi: '托迪（印度）',
+  purvi: '普尔维（印度）',
+  marwa: '马尔瓦（印度）',
+  chromatic: '半音阶'
+};
+
+/** 音阶的中文名；未知音阶原样返回。 */
+export const scaleLabel = (id) => SCALE_LABELS[id] || id;
+
 /** Pitch classes (0..11) in a scale. */
 export function scalePitchClasses(root, scale = 'minor') {
   const rootPc = typeof root === 'number' ? ((root % 12) + 12) % 12 : parsePitchClass(root);
   const steps = SCALES[scale];
-  if (rootPc === null || rootPc === undefined) throw new Error(`Invalid key root "${root}"`);
-  if (!steps) throw new Error(`Unknown scale "${scale}". Known: ${Object.keys(SCALES).join(', ')}`);
+  if (rootPc === null || rootPc === undefined) throw new Error(`主音不对：「${root}」`);
+  if (!steps) throw new Error(`不认识的音阶「${scale}」。已知：${Object.keys(SCALES).join('、')}`);
   return steps.map((s) => (rootPc + s) % 12);
 }
 
@@ -90,7 +119,7 @@ export function scalePitchClasses(root, scale = 'minor') {
 export function scaleNotes(root, scale = 'minor', octave = 4, octaves = 1) {
   const rootPc = parsePitchClass(root);
   const steps = SCALES[scale];
-  if (rootPc === null || !steps) throw new Error(`Invalid scale ${root} ${scale}`);
+  if (rootPc === null || !steps) throw new Error(`音阶不对：${root} ${scale}`);
   const base = (octave + 1) * 12 + rootPc;
   const out = [];
   for (let o = 0; o < octaves; o++) for (const s of steps) out.push(base + o * 12 + s);
@@ -154,12 +183,12 @@ export function parseChord(symbol) {
   const s = String(symbol).trim();
   // root letter may be lower case ("am" = Am); a following "b" is a flat ("bbm7" = Bbm7)
   const m = /^([A-Ga-g][#b♯♭]?)([^/]*)(?:\/([A-Ga-g][#b♯♭]?))?$/.exec(s);
-  if (!m) throw new Error(`Invalid chord "${symbol}". Use symbols like Am, F#m7, Bbmaj7, G7, Dsus4, C/E — or roman numerals (i, VI, bVII, V7/V) when the project has a key.`);
+  if (!m) throw new Error(`和弦记号不对：「${symbol}」。写成 Am、F#m7、Bbmaj7、G7、Dsus4、C/E 这样；工程定了调时也可以用级数（i、VI、bVII、V7/V）。`);
   const root = parsePitchClass(m[1]);
   const quality = m[2].trim();
   const intervals = CHORD_TYPES[quality];
   if (!intervals) {
-    throw new Error(`Unknown chord quality "${quality}" in "${symbol}". Known: ${Object.keys(CHORD_TYPES).filter(Boolean).join(', ')}`);
+    throw new Error(`和弦「${symbol}」里的性质「${quality}」不认识。已知：${Object.keys(CHORD_TYPES).filter(Boolean).join('、')}`);
   }
   const bass = m[3] ? parsePitchClass(m[3]) : null;
   return { root, intervals: [...intervals], bass };
@@ -291,7 +320,7 @@ export function romanToChord(numeral, key = 'C', scale = 'major') {
     return romanToChord(slash[0], tonicName, targetMinor ? 'harmonicMinor' : 'major');
   }
   const m = ROMAN_RE.exec(text);
-  if (!m) throw new Error(`Invalid roman numeral "${numeral}"`);
+  if (!m) throw new Error(`级数记号不对：「${numeral}」`);
   const [, acc, rn, qual = '', ext = ''] = m;
   const degree = ROMAN[rn.toLowerCase()];
   // Without an accidental the degree comes from the key's own scale (so "VI" in A minor = F);
@@ -335,13 +364,13 @@ function chordQuality(rn, qual, ext) {
  */
 export function diatonicChords(key = 'C', scale = 'major', { sevenths = false } = {}) {
   const pcs = scalePitchClasses(key, sevenNoteScale(scale));
-  if (pcs.length !== 7) throw new Error('Diatonic chords need a 7-note scale');
+  if (pcs.length !== 7) throw new Error('自然音级和弦需要七声音阶');
   const odd = pcs.some((root, d) => {
     const third = (pcs[(d + 2) % 7] - root + 12) % 12;
     const fifth = (pcs[(d + 4) % 7] - root + 12) % 12;
     return !((third === 4 && (fifth === 7 || fifth === 8)) || (third === 3 && (fifth === 7 || fifth === 6)));
   });
-  if (odd) throw new Error(`The ${scale} scale has degrees without a major, minor, diminished or augmented triad: it is played melodically (over a drone such as a tanpura), not harmonised in triads. Use action "scale" for its notes.`);
+  if (odd) throw new Error(`${scale} 音阶里有音级凑不出大、小、减或增三和弦：它通常配着持续音（比如坦普拉琴）作旋律演奏，不按三和弦配和声。要它的音，用 action "scale"。`);
   const spell = scaleSpelling(key, scale);
   const numerals = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
   return pcs.map((root, d) => {

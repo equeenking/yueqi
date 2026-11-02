@@ -30,27 +30,27 @@ export const MIX_TARGETS = {
 
 export function registerMixTools({ tool, backend, load }) {
   tool('set_mixer', {
-    title: 'Set mixer insert',
-    description: 'Change a mixer insert (0 = Master): name, color, volume (0..1.25; inserts default 0.8 ≈ -1.9 dB, the master 1.0 = 0 dB — keep the master at 0 dB, it sits after the master limiter), pan, mute, solo, output routing and sends (e.g. to a shared reverb bus). Inserts that do not exist yet are created.',
+    title: '设置混音台通道条',
+    description: '改一条混音台通道条（0＝主输出）：名字、颜色、音量（0..1.25；通道条默认 0.8≈-1.9 dB，主输出 1.0＝0 dB——主输出就保持在 0 dB，它在主限幅器之后）、声像、静音、独奏、输出路由与发送（例如发到一条共用的混响总线）。还不存在的通道条会被自动创建。',
     inputSchema: {
       projectId: projectIdArg,
       insert: z.number().int().min(0).max(64),
       name: z.string().min(1).max(64).optional(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       volume: z.number().min(0).max(1.25).optional(),
-      volumeDb: z.number().min(-60).max(1.9).optional().describe('Alternative to volume, in dB'),
+      volumeDb: z.number().min(-60).max(1.9).optional().describe('也可以直接用 dB 给音量，代替 volume'),
       pan: z.number().min(-1).max(1).optional(),
       mute: z.boolean().optional(),
       solo: z.boolean().optional(),
-      output: z.number().int().min(0).optional().describe('Route this insert into another insert (default 0 = master)'),
-      sends: z.array(z.object({ to: z.number().int().min(0), amount: z.number().min(0).max(1) })).optional().describe('Extra sends (replaces the existing list)')
+      output: z.number().int().min(0).optional().describe('把这条通道条路由进另一条通道条（默认 0＝主输出）'),
+      sends: z.array(z.object({ to: z.number().int().min(0), amount: z.number().min(0).max(1) })).optional().describe('额外的发送（会替换现有的整份列表）')
     },
     annotations: A.edit
   }, async (a) => {
     const p = await load(a.projectId);
     if (a.sends) {
       const targets = a.sends.map((s) => s.to);
-      if (new Set(targets).size !== targets.length) throw new Error('Each send target may appear only once');
+      if (new Set(targets).size !== targets.length) throw new Error('同一个发送目标只能出现一次');
       if (targets.includes(a.insert)) throw new Error("An insert can't send to itself");
       const out = a.output ?? p.mixer[a.insert]?.output ?? 0;
       if (targets.includes(out)) throw new Error(`Insert ${a.insert} already outputs to ${out}; a send there would double the signal`);
@@ -71,21 +71,21 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('add_effect', {
-    title: 'Add effect',
-    description: `Add an effect to a mixer insert's chain (0 = master; on the master it is placed before the limiter). Types: ${EFFECT_TYPES.map((t) => `${t} (${EFFECTS[t].description})`).join('; ')}. Use list_effects for params. For a kick-triggered sidechain put pump on the bass/pad insert with params {"source":"Kick"}.`,
+    title: '添加效果器',
+    description: `往一条混音台通道条的效果链上加效果器（0＝主输出；加在主输出上会排在限幅器之前）。类型：${EFFECT_TYPES.map((t) => `${t}（${EFFECTS[t].description}）`).join('；')}。参数见 list_effects。要做底鼓触发的侧链压缩，就在贝斯／铺底那条通道条上加 pump，参数写 {"source":"底鼓"}。`,
     inputSchema: {
       projectId: projectIdArg,
       insert: z.number().int().min(0),
       type: z.enum(EFFECT_TYPES),
-      plugin: z.string().optional().describe('For type "plugin": the effect plugin id (list_plugins)'),
-      preset: z.string().optional().describe('For type "plugin": one of its presets'),
+      plugin: z.string().optional().describe('type 为「插件」时用：效果插件 id（见 list_plugins）'),
+      preset: z.string().optional().describe('type 为「插件」时用：它的某个预设'),
       params: z.record(z.string(), z.any()).optional(),
-      position: z.number().int().min(0).optional().describe('Slot index (default: end of chain)')
+      position: z.number().int().min(0).optional().describe('插槽序号（默认排在链尾）')
     },
     annotations: A.edit
   }, async ({ projectId, insert, type, plugin, preset, params, position }) => {
     const p = await load(projectId);
-    if (!p.mixer[insert]) throw new Error(`Mixer insert ${insert} does not exist (0..${p.mixer.length - 1}; set_mixer creates inserts)`);
+    if (!p.mixer[insert]) throw new Error(`混音台通道条 ${insert} 不存在（0..${p.mixer.length - 1}；先用 set_mixer 新建）`);
     let pluginId = null;
     if (type === 'plugin') {
       const m = await requirePlugin(backend, plugin, 'effect');
@@ -106,12 +106,12 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('update_effect', {
-    title: 'Update effect',
-    description: "Change an effect's params or bypass it.",
+    title: '修改效果器',
+    description: '改某个效果器的参数，或者把它旁通。',
     inputSchema: {
       projectId: projectIdArg,
       insert: z.number().int().min(0),
-      effectId: z.string().describe('Effect id, or effect type if only one of that type is on the insert'),
+      effectId: z.string().describe('效果器 id；如果该类型在这条通道条上只有一个，也可以写类型名'),
       params: z.record(z.string(), z.any()).optional(),
       enabled: z.boolean().optional()
     },
@@ -137,8 +137,8 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('remove_effect', {
-    title: 'Remove effect',
-    description: 'Remove an effect from a mixer insert (its automations are removed too).',
+    title: '删除效果器',
+    description: '从混音台通道条上删掉一个效果器（它的自动化也会一起删）。',
     inputSchema: { projectId: projectIdArg, insert: z.number().int().min(0), effectId: z.string() },
     annotations: A.destructive
   }, async ({ projectId, insert, effectId }) => {
@@ -149,8 +149,8 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('move_effect', {
-    title: 'Reorder effect',
-    description: 'Move an effect to another slot in the insert chain (0 = first). Order matters: e.g. EQ → compressor → reverb.',
+    title: '调整效果器顺序',
+    description: '把效果器挪到链上的另一个插槽（0＝第一个）。顺序是有讲究的，例如 均衡 → 压缩 → 混响。',
     inputSchema: { projectId: projectIdArg, insert: z.number().int().min(0), effectId: z.string(), position: z.number().int().min(0) },
     annotations: A.edit
   }, async ({ projectId, insert, effectId, position }) => {
@@ -164,18 +164,18 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('render_mix', {
-    title: 'Render & analyse the mix',
-    description: `Render the song (or a pattern) in the user's browser and analyse it like a mastering engineer's meters: integrated loudness (LUFS), loudness range, sample and true peak, crest factor, clipping, master limiter gain reduction, spectral balance (sub/low/low-mid/mid/high-mid/high), the strongest low frequency, stereo width and low-end mono-ness, loudness per 4-bar section and (stems=true) per-channel loudness/spectrum/low-end note. target compares against a delivery standard and tells you exactly how much to change the master limiter's input gain. save=true also stores the WAV (24-bit by default) in the user's exports. Targets: ${Object.keys(MIX_TARGETS).join(', ')}. Needs the studio open in a browser.`,
+    title: '渲染并分析混音',
+    description: `在用户的浏览器里渲染整首（或某个片段），然后像母带师的仪表那样分析：整体响度（LUFS）、响度范围、采样峰值与真峰值、波峰因数、是否削波、主限幅器的增益衰减量、频谱平衡（超低频／低频／中低／中频／中高／高频）、最强的低频、立体声宽度与低频的单声道度、每 4 小节的响度，以及（stems=true 时）每个通道的响度／频谱／低音音高。target 会拿一个发行标准来比对，并直接告诉你主限幅器的输入增益该改多少。save=true 还会把 WAV（默认 24 位）存进用户的导出目录。可选标准：${Object.keys(MIX_TARGETS).join('、')}。需要在浏览器里打开本工作室。`,
     inputSchema: {
       projectId: projectIdArg,
-      mode: z.enum(['song', 'pattern']).optional().describe('Default: song if the playlist has clips, else pattern'),
-      pattern: z.string().optional().describe('For mode=pattern (default: first pattern)'),
-      loops: z.number().int().min(1).max(16).optional().describe('Pattern mode: how many loops to render (default 2)'),
-      stems: z.boolean().optional().describe('Also analyse each channel on its own (default true)'),
-      target: z.enum(Object.keys(MIX_TARGETS)).optional().describe('Delivery target to compare against (default streaming)'),
-      targetLufs: z.number().min(-30).max(-4).optional().describe('Custom integrated loudness target (overrides target)'),
-      save: z.boolean().optional().describe('Keep the rendered WAV in exports (default false)'),
-      bitDepth: z.union([z.literal(16), z.literal(24)]).optional().describe('WAV bit depth when saving (default 24; 16-bit is dithered)')
+      mode: z.enum(['song', 'pattern']).optional().describe('默认：播放列表里有片段就整首，否则单片段'),
+      pattern: z.string().optional().describe('mode=pattern 时用（默认第一个片段）'),
+      loops: z.number().int().min(1).max(16).optional().describe('单片段模式：渲染几遍（默认 2）'),
+      stems: z.boolean().optional().describe('也逐个通道单独分析（默认是）'),
+      target: z.enum(Object.keys(MIX_TARGETS)).optional().describe('要比对的发行标准（默认 streaming）'),
+      targetLufs: z.number().min(-30).max(-4).optional().describe('自定义整体响度目标（写了它就覆盖 target）'),
+      save: z.boolean().optional().describe('把渲染出来的 WAV 留在导出目录（默认不留）'),
+      bitDepth: z.union([z.literal(16), z.literal(24)]).optional().describe('保存时的 WAV 位深（默认 24；16 位会加抖动）')
     },
     // not read-only: save=true writes a WAV into the user's exports
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
@@ -192,15 +192,15 @@ export function registerMixTools({ tool, backend, load }) {
   });
 
   tool('export_stems', {
-    title: 'Export stems',
-    description: "Render every channel that plays (and the audio clips) as its own WAV into the user's exports — the delivery a mixing/mastering engineer or a collaborator expects. Each stem keeps its channel, mixer insert, effects and sends (e.g. its reverb) but skips the master bus effects unless masterFx=true, so the stems sum back to the pre-master mix. Needs the studio open in a browser; takes a while for long songs (progress is reported).",
+    title: '导出分轨',
+    description: '把每一个在响的通道（以及音频块）各自渲染成一个 WAV，存进用户的导出目录——这正是混音／母带师或合作者想要的那套交付。每条分轨保留它自己的通道、混音通道条、效果器与发送（比如它的混响），但除非 masterFx=true，否则不带主输出上的效果，这样分轨加起来正好等于进主输出之前的混音。需要在浏览器里打开本工作室；长曲子会花些时间（会回报进度）。',
     inputSchema: {
       projectId: projectIdArg,
-      mode: z.enum(['song', 'pattern']).optional().describe('Default: song if the playlist has clips, else pattern'),
-      pattern: z.string().optional().describe('For mode=pattern (default: first pattern)'),
-      loops: z.number().int().min(1).max(16).optional().describe('Pattern mode: loops to render (default 2)'),
-      bitDepth: z.union([z.literal(16), z.literal(24)]).optional().describe('Default 24'),
-      masterFx: z.boolean().optional().describe('Print the master bus effects (limiter…) on every stem (default false)')
+      mode: z.enum(['song', 'pattern']).optional().describe('默认：播放列表里有片段就整首，否则单片段'),
+      pattern: z.string().optional().describe('mode=pattern 时用（默认第一个片段）'),
+      loops: z.number().int().min(1).max(16).optional().describe('单片段模式：渲染几遍（默认 2）'),
+      bitDepth: z.union([z.literal(16), z.literal(24)]).optional().describe('默认 24'),
+      masterFx: z.boolean().optional().describe('把主输出上的效果（限幅器等）印到每条分轨上（默认不印）')
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   }, async ({ projectId, mode, pattern, loops = 2, bitDepth = 24, masterFx = false }, extra) => {

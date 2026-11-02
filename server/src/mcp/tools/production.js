@@ -119,14 +119,14 @@ export const GROOVES = {
 
 export function registerProductionTools({ tool, backend, load }) {
   tool('add_transition', {
-    title: 'Add a transition',
-    description: `Build a transition into or out of a section in one call: ${Object.entries(TRANSITIONS).map(([k, t]) => `${k} (${t.label})`).join('; ')}. atBar is the 1-based bar where the new section starts (the downbeat): risers/swells/builds end exactly there, hits land on it. Creates (or reuses) the sound's channel, a pattern and its playlist clip on a "Transitions" track, plus filter/volume automation for sweeps. Typical: riser 4–8 bars + impact into a drop; snare_build 2 bars into a hook; reverse_swell 1 bar into a verse; downlifter after a drop.`,
+    title: '加一个过渡',
+    description: `一次调用就搭好进／出某个段落的过渡：${Object.entries(TRANSITIONS).map(([k, t]) => `${k}（${t.label}）`).join('；')}。atBar 是新段落开始那一小节（从 1 数起，也就是重拍）：上扬、涌起、推进都正好在那里收尾，重击正好落在那一点。它会新建（或复用）音色通道、一个片段以及它在播放列表里的块，放在「过渡」轨道上，扫频还会配上滤波／音量自动化。常见用法：riser 4–8 小节 + impact 进 drop；snare_build 2 小节进副歌；reverse_swell 1 小节进主歌；downlifter 放在 drop 之后。`,
     inputSchema: {
       projectId: projectIdArg,
       type: z.enum(Object.keys(TRANSITIONS)),
-      atBar: z.number().int().min(1).describe('Bar where the section starts / the hit lands'),
-      bars: z.number().positive().max(16).optional().describe('Length of sweeps/swells/builds (default: riser 4, downlifter 2, snare_build 2, reverse_swell 1)'),
-      track: z.number().int().min(1).max(MAX_TRACKS).optional().describe('1-based playlist track (default: a track named "Transitions")')
+      atBar: z.number().int().min(1).describe('段落起点／重击落点所在小节'),
+      bars: z.number().positive().max(16).optional().describe('扫频／涌起／推进的长度（默认：riser 4、downlifter 2、snare_build 2、reverse_swell 1）'),
+      track: z.number().int().min(1).max(MAX_TRACKS).optional().describe('播放列表轨道号，从 1 开始（默认用名为「过渡」的轨道）')
     },
     annotations: A.edit
   }, async ({ projectId, type, atBar, bars, track }) => {
@@ -249,15 +249,15 @@ export function registerProductionTools({ tool, backend, load }) {
   });
 
   tool('add_fill', {
-    title: 'Add a drum fill',
-    description: 'Make a fill version of a drum pattern: copies the pattern (or edits it in place) and rewrites its last beats. Styles: snare_roll (16ths into 32nds, crescendo), tom_run (descending toms; creates a tom channel if needed), hat_roll (trap triplet/32nd hat rolls), stutter (kick+snare repeating 16ths), dropout (kick, bass and snares drop out — the gap before a drop), kick_build (EDM kick in 8ths then 16ths). Place the fill pattern at the last bar of a section (e.g. every 4th or 8th bar) instead of the main one.',
+    title: '加一个鼓过门',
+    description: '把一个鼓片段做成过门版本：复制该片段（或就地改），重写它最后几拍。风格：snare_roll（十六分推进到三十二分，渐强）、tom_run（嗵鼓下行；需要时会新建嗵鼓通道）、hat_roll（trap 的三连音／三十二分踩镲连击）、stutter（底鼓＋军鼓重复十六分）、dropout（底鼓、贝斯和军鼓全部让开——drop 之前的空档）、kick_build（EDM 底鼓先用八分再用十六分）。把这个过门片段放在段落最后一小节（比如每第 4 或第 8 小节）来替换主片段。',
     inputSchema: {
       projectId: projectIdArg,
-      pattern: z.string().describe('The drum pattern to make a fill from'),
+      pattern: z.string().describe('要用来做过门的鼓片段'),
       style: z.enum(['snare_roll', 'tom_run', 'hat_roll', 'stutter', 'dropout', 'kick_build']),
-      beats: z.number().min(0.5).max(8).optional().describe('How many beats at the end (default 1; 2 for tom_run and kick_build)'),
-      name: z.string().min(1).max(64).optional().describe('Name of the new pattern (default "<pattern> Fill")'),
-      inPlace: z.boolean().optional().describe('Rewrite the pattern itself instead of a copy (default false)')
+      beats: z.number().min(0.5).max(8).optional().describe('结尾多少拍（默认 1；tom_run 与 kick_build 是 2）'),
+      name: z.string().min(1).max(64).optional().describe('新片段的名字（默认「<原片段> 过门」）'),
+      inPlace: z.boolean().optional().describe('直接改原片段而不是复制一份再改（默认不改原片段）')
     },
     annotations: A.edit
   }, async ({ projectId, pattern, style, beats, name, inPlace = false }) => {
@@ -356,7 +356,7 @@ export function registerProductionTools({ tool, backend, load }) {
       for (const [cid, list] of Object.entries(notes)) ops.push({ type: 'notes/set', patternId: src.id, channelId: cid, notes: list });
     } else {
       const newName = name || uniqueName(p.patterns, `${src.name} Fill`);
-      if (p.patterns.some((x) => x.name.toLowerCase() === newName.toLowerCase())) throw new Error(`A pattern named "${newName}" already exists`);
+      if (p.patterns.some((x) => x.name.toLowerCase() === newName.toLowerCase())) throw new Error(`已有同名的片段「${newName}」`);
       const id = uid('pat');
       target = { id, name: newName };
       ops.push({ type: 'pattern/add', index: p.patterns.indexOf(src) + 1, pattern: { id, name: newName, color: src.color, length: src.length, notes: Object.fromEntries(Object.entries(notes).map(([cid, list]) => [cid, list.map((x) => ({ ...x, id: uid('n') }))])) } });
@@ -367,15 +367,15 @@ export function registerProductionTools({ tool, backend, load }) {
   });
 
   tool('apply_groove', {
-    title: 'Apply a groove / feel',
-    description: `Give the beat a human feel in one call: sets the project swing, each channel's nudge (ms early/late) and swing share by role (kick, snare/clap, hats, percussion, bass, other), shapes hi-hat velocities with an accent pattern per beat and adds subtle humanizing (timing on drum hits, velocity on accented parts). Presets: ${Object.entries(GROOVES).map(([k, g]) => `${k} (${g.label})`).join('; ')}. amount scales the whole effect (0..1). Running it again re-applies cleanly (accents, velocity and timing are not stacked; triplets and rolls are left alone); "straight" re-quantizes.`,
+    title: '加律动／手感',
+    description: `一次调用让节拍带上人的手感：设置工程摇摆、各通道按角色（底鼓、军鼓／拍手、踩镲、打击乐、贝斯、其它）的提前量（早／晚多少毫秒）与摇摆占比，用每拍的重音型塑造踩镲力度，并加上轻微的人性化（鼓点的时间抖动、重音部分的力度抖动）。预设：${Object.entries(GROOVES).map(([k, g]) => `${k}（${g.label}）`).join('；')}。amount 整体缩放这个效果（0..1）。再跑一次会干净地重做（重音、力度与时间不会叠加；三连音和连击保持原样）；"straight" 会重新量化回方正。`,
     inputSchema: {
       projectId: projectIdArg,
       preset: z.enum(Object.keys(GROOVES)),
-      amount: z.number().min(0).max(1).optional().describe('Strength (default 1)'),
-      patterns: z.array(z.string()).optional().describe('Patterns whose notes get accents/humanizing (default: all). Swing and nudges are per channel and apply everywhere.'),
-      humanize: z.boolean().optional().describe('Add timing/velocity variation (default true)'),
-      ghostNotes: z.boolean().optional().describe('Also add quiet ghost snares on the classic off-beat 16ths where the snare is silent (default false)')
+      amount: z.number().min(0).max(1).optional().describe('强度（默认 1）'),
+      patterns: z.array(z.string()).optional().describe('哪些片段的音符要加重音／人性化（默认全部）。摇摆与提前量是按通道设的，处处生效。'),
+      humanize: z.boolean().optional().describe('加入时间／力度的随机变化（默认是）'),
+      ghostNotes: z.boolean().optional().describe('还会在军鼓不响的那些经典弱位十六分上加很轻的幽灵军鼓（默认不加）')
     },
     annotations: A.edit
   }, async ({ projectId, preset, amount = 1, patterns, humanize = true, ghostNotes = false }) => {

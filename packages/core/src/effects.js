@@ -23,7 +23,7 @@ export function divisionBeats(div) {
 // automatable: param is backed by a Web Audio AudioParam and can be automated.
 export const EFFECTS = {
   eq: {
-    label: 'Parametric EQ', description: '3-band EQ (low shelf, mid peak, high shelf) with high-pass and low-pass filters (12 dB/oct; hpf 20 Hz / lpf 20 kHz = off).',
+    label: '参数均衡', description: '三段均衡（低架、中峰、高架），外加高通与低通（12 dB/倍频程；高通 20 Hz／低通 20 kHz 即关闭）。',
     params: [
       n('hpf', 'High-pass', 20, 1000, 20, { unit: 'Hz', curve: 'log', automatable: true }),
       n('low', 'Low', -24, 24, 0, { unit: 'dB', automatable: true }),
@@ -37,16 +37,16 @@ export const EFFECTS = {
     ]
   },
   filter: {
-    label: 'Filter', description: 'Resonant filter. Automate cutoff for sweeps.',
+    label: '滤波器', description: '带共振的滤波器。给截止频率画自动化就能做出扫频。',
     params: [
       sel('type', 'Type', ['lowpass', 'highpass', 'bandpass', 'notch'], 'lowpass'),
-      n('cutoff', 'Cutoff', 20, 20000, 20000, { unit: 'Hz', curve: 'log', automatable: true }),
+      n('cutoff', '截止', 20, 20000, 20000, { unit: 'Hz', curve: 'log', automatable: true }),
       n('resonance', 'Resonance', 0.1, 20, 0.8, { curve: 'log', automatable: true }),
       n('mix', 'Mix', 0, 1, 1, { automatable: true })
     ]
   },
   compressor: {
-    label: 'Compressor', description: 'Dynamics compressor; mix < 1 = parallel (New York) compression. No automatic makeup: set makeup so the level matches the bypassed sound.',
+    label: '压缩器', description: '动态压缩；干湿比小于 1 就是并联（纽约）压缩。没有自动补偿增益：请手动调补偿，让响度与旁通时一致。',
     params: [
       n('threshold', 'Threshold', -60, 0, -18, { unit: 'dB', automatable: true }),
       n('ratio', 'Ratio', 1, 20, 4, { curve: 'log', automatable: true }),
@@ -58,7 +58,7 @@ export const EFFECTS = {
     ]
   },
   delay: {
-    label: 'Delay', description: 'Tempo-synced (ping-pong) delay; the repeats are high-passed so they never muddy the low end.',
+    label: '延迟', description: 'Tempo-synced (ping-pong) delay; the repeats are high-passed so they never muddy the low end.',
     params: [
       sel('time', 'Time', SYNC_DIVISIONS, '1/8d'),
       n('feedback', 'Feedback', 0, 0.95, 0.35, { automatable: true }),
@@ -68,7 +68,7 @@ export const EFFECTS = {
     ]
   },
   reverb: {
-    label: 'Reverb', description: 'Convolution reverb with a generated room: early reflections (size), a decay whose highs die faster (damping), and a 120 Hz low cut.',
+    label: '混响', description: 'Convolution reverb with a generated room: early reflections (size), a decay whose highs die faster (damping), and a 120 Hz low cut.',
     params: [
       n('decay', 'Decay', 0.2, 10, 2.2, { unit: 's', curve: 'log' }),
       n('size', 'Size', 0, 1, 0.5),
@@ -78,7 +78,7 @@ export const EFFECTS = {
     ]
   },
   distortion: {
-    label: 'Distortion', description: 'Waveshaper saturation / distortion.',
+    label: '失真', description: '波形整形式的饱和与失真。',
     params: [
       n('drive', 'Drive', 0, 1, 0.35),
       sel('mode', 'Mode', ['soft', 'hard', 'fold'], 'soft'),
@@ -88,16 +88,16 @@ export const EFFECTS = {
     ]
   },
   chorus: {
-    label: 'Chorus', description: 'Stereo modulated-delay chorus.',
+    label: '合唱', description: '立体声调制延迟式合唱。',
     params: [
       n('rate', 'Rate', 0.05, 8, 0.8, { unit: 'Hz', curve: 'log', automatable: true }),
       n('depth', 'Depth', 0, 1, 0.4),
-      n('delay', 'Delay', 0.005, 0.04, 0.015, { unit: 's' }),
+      n('delay', '延迟', 0.005, 0.04, 0.015, { unit: 's' }),
       n('mix', 'Mix', 0, 1, 0.5, { automatable: true })
     ]
   },
   phaser: {
-    label: 'Phaser', description: '4-stage all-pass phaser.',
+    label: '移相器', description: '四级全通移相。',
     params: [
       n('rate', 'Rate', 0.05, 8, 0.5, { unit: 'Hz', curve: 'log', automatable: true }),
       n('depth', 'Depth', 0, 1, 0.6),
@@ -107,21 +107,21 @@ export const EFFECTS = {
     ]
   },
   bitcrusher: {
-    label: 'Lo-fi Crusher', description: 'Bit-depth reduction for crunchy lo-fi tones.',
+    label: '低保真压碎器', description: '降低位深，做出粗糙的低保真质感。',
     params: [
       n('bits', 'Bits', 1, 16, 8, { step: 1 }),
       n('mix', 'Mix', 0, 1, 0.6, { automatable: true })
     ]
   },
   stereo: {
-    label: 'Stereo Shaper', description: 'Stereo width (0 = mono, 1 = normal, 2 = extra wide); monoBelow keeps everything under that frequency mono (0 = off) so wide bass stays club- and phone-safe.',
+    label: '立体声塑形', description: '立体声宽度（0 = 单声道，1 = 正常，2 = 超宽）；「以下转单声道」把该频率以下的成分保持单声道（0 = 关闭），这样铺得很宽的低频在俱乐部和手机上也不会出问题。',
     params: [
       n('width', 'Width', 0, 2, 1, { automatable: true }),
       n('monoBelow', 'Mono below', 0, 500, 0, { unit: 'Hz' })
     ]
   },
   pump: {
-    label: 'Sidechain Pump', description: 'Volume ducking. With source = a channel (e.g. the kick) it ducks on every note of that channel — a real sidechain that follows syncopated kicks, even when that channel is muted (a "ghost" trigger). Without a source it pumps on a tempo-synced grid (rate).',
+    label: '侧链压缩', description: '音量闪避。触发源选某个通道（例如底鼓）时，该通道每个音符都会压一下——是真正的侧链，能跟住切分的底鼓，即使该通道已静音也能当「幽灵触发」。不选触发源则按与速度同步的网格闪避（速率）。',
     params: [
       channelRef('source', 'Trigger channel'),
       sel('rate', 'Rate', ['1/16', '1/8', '1/4', '1/2', '1/1'], '1/4'),
@@ -130,7 +130,7 @@ export const EFFECTS = {
     ]
   },
   limiter: {
-    label: 'Limiter', description: 'Master limiter: input gain drives it, ceiling caps the output (oversampled clip stage). Keep the master fader after it at 0 dB; check true peak with render_mix (streaming wants ≤ -1 dBTP).',
+    label: '限幅器', description: '主输出限幅：输入增益推它，天花板封顶输出（过采样削波级）。后面的主推子请留在 0 dB；用 render_mix 检查真峰值（流媒体平台要求 ≤ -1 dBTP）。',
     params: [
       n('gain', 'Input gain', 0, 24, 0, { unit: 'dB', automatable: true }),
       n('ceiling', 'Ceiling', -12, 0, -1, { unit: 'dB' }),
@@ -141,7 +141,7 @@ export const EFFECTS = {
 
 // a user plugin effect (see plugins.js): effect.plugin holds its id, params come from the plugin's manifest
 EFFECTS.plugin = {
-  label: 'Plugin effect', dynamic: true,
+  label: '插件效果', dynamic: true,
   description: 'An effect from one of the user\'s installed plugins (list_plugins): add_effect with type "plugin" and plugin "<id>"; params come from the plugin.',
   params: []
 };
@@ -150,7 +150,7 @@ export const EFFECT_TYPES = Object.keys(EFFECTS);
 
 export function getEffectDef(type) {
   const def = EFFECTS[type];
-  if (!def) throw new Error(`Unknown effect "${type}". Available: ${EFFECT_TYPES.join(', ')}`);
+  if (!def) throw new Error(`不认识的效果器「${type}」。可用：${EFFECT_TYPES.join('、')}`);
   return def;
 }
 

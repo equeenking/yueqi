@@ -33,8 +33,8 @@ export function pluginValues(m, preset, params) {
 
 export function registerPluginTools({ tool, backend, load }) {
   tool('list_plugins', {
-    title: 'List the user\'s plugins',
-    description: 'Instrument, effect and generator plugins the user installed (Settings → Plugins), with their params and presets. Use: add_channel instrument="plugin" plugin="<id>"; add_effect type="plugin" plugin="<id>"; run_generator plugin="<id>". Plugins run sandboxed in the user\'s browser.',
+    title: '列出用户的插件',
+    description: '列出用户装好的乐器、效果器与生成器插件（设置 → 插件），带参数与预设。用法：add_channel 里写 instrument="plugin" plugin="<id>"；add_effect 里写 type="plugin" plugin="<id>"；run_generator 里写 plugin="<id>"。插件在用户的浏览器里以沙箱方式运行。',
     inputSchema: {},
     annotations: A.readOnly
   }, async () => {
@@ -56,19 +56,19 @@ export function registerPluginTools({ tool, backend, load }) {
   });
 
   tool('run_generator', {
-    title: 'Run a generator plugin',
-    description: "Generate notes with one of the user's generator plugins (list_plugins) into a pattern/channel. The plugin runs in the user's browser, sandboxed (no network, time-limited); its output is checked and clamped before it's written. Gets the project key/scale/tempo, the target channel and its params (and the pattern's notes if the plugin has project-read).",
+    title: '跑一个生成器插件',
+    description: '用用户的某个生成器插件（见 list_plugins）往片段／通道里生成音符。插件在用户的浏览器里以沙箱方式运行（不能联网、有时间限制）；输出会先检查并夹紧再写入。它能拿到工程的调／音阶／速度、目标通道及其参数（插件若有读取工程的权限，还能拿到该片段的音符）。',
     inputSchema: {
       projectId: projectIdArg,
-      plugin: z.string().describe('Generator plugin id or name'),
+      plugin: z.string().describe('生成器插件的 id 或名字'),
       pattern: z.string(),
       channel: z.string(),
       params: z.record(z.string(), z.any()).optional(),
       preset: z.string().optional(),
-      bars: z.number().min(0.25).max(64).optional().describe('How many bars to generate (default: from start to the end of the pattern)'),
-      start: z.number().min(0).optional().describe('Start step inside the pattern (default 0)'),
-      replace: z.boolean().optional().describe('Remove the channel\'s existing notes in that range first (default true)'),
-      seed: z.number().int().min(0).optional().describe('Random seed (same seed + params = same notes)')
+      bars: z.number().min(0.25).max(64).optional().describe('生成多少小节（默认：从起点到片段结尾）'),
+      start: z.number().min(0).optional().describe('片段内的起始步（默认 0）'),
+      replace: z.boolean().optional().describe('先删掉该通道在这一范围内已有的音符（默认是）'),
+      seed: z.number().int().min(0).optional().describe('随机种子（同一种子＋同样参数＝同样的音符）')
     },
     annotations: A.edit
   }, async ({ projectId, plugin, pattern, channel, params, preset, bars, start = 0, replace = true, seed }, extra) => {

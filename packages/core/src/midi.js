@@ -92,13 +92,13 @@ export function parseMidi(input) {
   const readStr = (len) => { const s = new TextDecoder().decode(bytes.slice(pos, pos + len)); pos += len; return s; };
   const readVlq = () => { let v = 0; let b; do { b = bytes[pos++]; v = (v << 7) | (b & 0x7f); } while (b & 0x80 && pos < bytes.length); return v; };
 
-  if (readStr(4) !== 'MThd') throw new Error('Not a MIDI file');
+  if (readStr(4) !== 'MThd') throw new Error('这不是 MIDI 文件');
   const hlen = read32();
   const format = read16();
   const ntracks = read16();
   const division = read16();
   pos += hlen - 6;
-  if (division & 0x8000) throw new Error('SMPTE-timed MIDI files are not supported');
+  if (division & 0x8000) throw new Error('不支持 SMPTE 时间码的 MIDI 文件');
   const scale = PPQ / division;
   let bpm = null;
   let timeSig = null;
@@ -156,7 +156,7 @@ export function parseMidi(input) {
     pos = end;
     if (notes.length) {
       notes.sort((a, b) => a.start - b.start || a.key - b.key);
-      tracks.push({ name: name || `Track ${tracks.length + 1}`, notes, program, channel, isDrum: channel === 9 });
+      tracks.push({ name: name || `轨道 ${tracks.length + 1}`, notes, program, channel, isDrum: channel === 9 });
     }
   }
   return { format, bpm, timeSig, tracks };

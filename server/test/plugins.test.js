@@ -257,12 +257,12 @@ test('MCP: list_plugins, plugin channels and effects with validated params', asy
   const ch = p.channels.find((c) => c.name === 'Chip');
   assert.equal(ch.instrument.params.duty, '25%'); // from the preset
   assert.equal(ch.instrument.params.gain, 0.3);
-  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'greanteadawy.chiptune', params: { gain: 7 } }), /between 0 and 1/);
+  await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'greanteadawy.chiptune', params: { gain: 7 } }), /必须在 0 到 1 之间/);
   await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'nope.nothing' }), /No installed plugin/);
   await assert.rejects(call('add_channel', { name: 'X', instrument: 'plugin', plugin: 'greanteadawy.tape-wobble' }), /is an effect plugin, not an instrument plugin/);
   await assert.rejects(call('add_channel', { name: 'X', instrument: 'kick', plugin: 'greanteadawy.chiptune' }), /only works with instrument "plugin"/);
   assert.match(await call('add_effect', { insert: ch.mixerTrack, type: 'plugin', plugin: 'greanteadawy.tape-wobble', preset: 'Warped' }), /Added plugin greanteadawy\.tape-wobble/);
-  await assert.rejects(call('add_effect', { insert: 1, type: 'plugin', plugin: 'greanteadawy.tape-wobble', params: { wow: 3 } }), /between 0 and 1/);
+  await assert.rejects(call('add_effect', { insert: 1, type: 'plugin', plugin: 'greanteadawy.tape-wobble', params: { wow: 3 } }), /必须在 0 到 1 之间/);
   assert.match(await call('update_effect', { insert: ch.mixerTrack, effectId: 'plugin', params: { mix: 0.5 } }), /Updated plugin/);
   assert.match(await call('update_channel', { channel: 'Chip', params: { vibrato: 30 } }), /Chip/);
   assert.match(await call('get_project', {}), /plugin=greanteadawy\.chiptune/);
@@ -325,7 +325,7 @@ test('MCP run_generator: runs in the browser, output is cleaned, project-read ge
   await assert.rejects(call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', start: 16 }), /past the end of "Gen"/);
   await call('run_generator', { plugin: 'greanteadawy.counter-melody', pattern: 'Gen', channel: 'Harmony' });
   assert.ok(jobs.at(-1).input.notes.some((n) => n.channel === 'Lead' && n.key === 72)); // project-read: the lead's notes
-  await assert.rejects(call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', params: { pulses: 99 } }), /between 1 and 32/);
+  await assert.rejects(call('run_generator', { plugin: 'greanteadawy.euclid', pattern: 'Gen', channel: 'Harmony', params: { pulses: 99 } }), /必须在 1 到 32 之间/);
   await assert.rejects(call('run_generator', { plugin: 'greanteadawy.chiptune', pattern: 'Gen', channel: 'Harmony' }), /is an instrument plugin, not a generator plugin/);
   sock.ws.close();
 });

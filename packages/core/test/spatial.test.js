@@ -41,7 +41,7 @@ test('spatial ops: project/update and mixer/update merge; objects need the spati
   assert.equal(isSpatialObject(p, 1), false); // routed into a bus
   p = applyOps(p, [{ type: 'mixer/update', index: 0, patch: { spatial: { enabled: true } } }]);
   assert.equal(p.mixer[0].spatial.enabled, false);
-  assert.throws(() => applyOps(p, [{ type: 'mixer/update', index: 1, patch: { spatial: 'left' } }]), /spatial must be an object/);
+  assert.throws(() => applyOps(p, [{ type: 'mixer/update', index: 1, patch: { spatial: 'left' } }]), /空间设置必须是一个对象/);
   assert.match(summarizeProject(applyOps(p, [{ type: 'mixer/update', index: 1, patch: { output: 0 } }])), /spatial \(3D\) mix ON[\s\S]*3D\(-1, 1, 0\.5\)/);
 });
 
@@ -53,7 +53,7 @@ test('position automation: spatialX/Y/Z targets (not on the master) and the posi
     { type: 'automation/add', automation: { id: 'auto_x', name: 'x', target: { type: 'mixer', index: 4, param: 'spatialX' }, length: 384, points: [{ t: 0, v: 0 }, { t: 384, v: 1 }] } },
     { type: 'clip/add', clips: [{ id: 'clip_x', kind: 'automation', refId: 'auto_x', track: 9, start: 384, length: 384 }] }
   ]);
-  assert.throws(() => applyOps(p, [{ type: 'automation/add', automation: { name: 'm', target: { type: 'mixer', index: 0, param: 'spatialX' }, length: 96, points: [] } }]), /volume, pan/);
+  assert.throws(() => applyOps(p, [{ type: 'automation/add', automation: { name: 'm', target: { type: 'mixer', index: 0, param: 'spatialX' }, length: 96, points: [] } }]), /volume、pan/);
   assert.deepEqual(objectPositionAt(p, 4, 0), { enabled: true, x: 0, y: 1, z: 0, lfe: 0 }); // before the clip: static
   assert.ok(near(objectPositionAt(p, 4, 384).x, -1));
   assert.ok(near(objectPositionAt(p, 4, 576).x, 0));

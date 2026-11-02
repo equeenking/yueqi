@@ -64,7 +64,7 @@ export async function createServer(config = loadConfig()) {
   const loopback = isLoopback(config.host);
   const users = await new UserStore(config.dataDir, { defaults: { mcpWithoutToken: loopback } }).init();
   const sessions = await new SessionStore(config.dataDir, { ttlDays: config.sessionTtlDays }).init();
-  const auth = createAuth({ users, sessions, ttlDays: config.sessionTtlDays });
+  const auth = createAuth({ users, sessions, ttlDays: config.sessionTtlDays, disableAuth: config.disableAuth });
   const store = await new ProjectStore(config.dataDir).init();
   const samples = await new SampleLibrary(config.dataDir).init();
   const hub = new Hub({ store, samples, users, sessions });
@@ -97,6 +97,15 @@ export async function createServer(config = loadConfig()) {
       await users.update(user.id, { activeProjectId: list[0].id });
     }
   };
+
+  // 免登录开放模式（默认开启）：确保始终存在 teacher 管理员账号——浏览器端静默登录它，访问即进工作台；
+  // 数据目录里已有其他账号（比如以前正式建过管理员）时也补建，保证开放模式永远登得进去。设 DISABLE_AUTH=false 恢复登录。
+  if (config.disableAuth) {
+    try {
+      const seed = await users.create({ username: 'teacher', password: 'music2026', displayName: '音乐老师', role: 'admin' });
+      await onUserCreated?.(seed, { firstAdmin: users.count() === 1 });
+    } catch { /* 并发或已存在时忽略 */ }
+  }
 
   const app = express();
   app.disable('x-powered-by');
@@ -185,7 +194,9 @@ async function main() {
     console.log(`\n  GreanTeaDawy  ${url}`);
     console.log(`  MCP (Streamable HTTP): ${url}/mcp  (${users.settings.mcpWithoutToken ? 'token optional' : 'API token required'})`);
     console.log(`  Data: ${config.dataDir}`);
-    if (!users.count()) {
+    if (config.disableAuth) {
+      console.log('  免登录模式：打开即进工作台（teacher 自动登录）。设 DISABLE_AUTH=false 恢复账号登录。');
+    } else if (!users.count()) {
       console.log('  First run: open the studio to create the admin account.');
       console.log(`  Setup code (needed when setting up from another computer or through a proxy): ${setupCode}`);
     }

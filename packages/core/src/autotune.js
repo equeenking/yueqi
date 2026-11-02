@@ -520,9 +520,9 @@ function jumpCuts(midi, a, b, minFrames, w, jump, spread, maxGap, persist, minGa
 export function scaleSnapper(key = 'C', scale = 'chromatic') {
   if (!scale || scale === 'chromatic') return (m) => Math.round(m);
   const steps = Object.hasOwn(SCALES, scale) ? SCALES[scale] : null;
-  if (!steps) throw new Error(`Unknown scale "${scale}". Known: chromatic, ${Object.keys(SCALES).join(', ')}`);
+  if (!steps) throw new Error(`不认识的音阶「${scale}」。已知：chromatic、${Object.keys(SCALES).join('、')}`);
   const root = parsePitchClass(key);
-  if (root === null || root === undefined) throw new Error(`Invalid key "${key}"`);
+  if (root === null || root === undefined) throw new Error(`调号不对：「${key}」`);
   const pcs = steps.map((s) => (root + s) % 12);
   return (m) => {
     let best = Math.round(m);
@@ -679,7 +679,7 @@ export function psola(channels, sampleRate, track, shifts) {
  * search), then overlap-added.
  */
 export function timeStretch(channels, sampleRate, rate) {
-  if (!(rate >= 0.25 && rate <= 4)) throw new Error('rate must be between 0.25 and 4');
+  if (!(rate >= 0.25 && rate <= 4)) throw new Error('倍率必须在 0.25 到 4 之间');
   const len = channels[0].length;
   const N = 2 * Math.round(sampleRate * 0.02);
   const Hs = N / 2;

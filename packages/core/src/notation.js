@@ -19,7 +19,7 @@ export function parseStepString(str) {
     else if (ch === 'o' || ch === 'O') vel = 0.45;
     else if (ch >= '1' && ch <= '9') vel = (ch.charCodeAt(0) - 48) / 10;
     else if (ch === '-' || ch === '.' || ch === '_' || ch === '0') vel = null;
-    else throw new Error(`Invalid step character "${ch}". Use x X o 1-9 for hits and - . _ for rests.`);
+    else throw new Error(`步字符不对：「${ch}」。用 x X o 1-9 表示敲击，- . _ 表示休止。`);
     if (vel !== null) hits.push({ step, velocity: vel });
     step++;
   }
@@ -65,7 +65,7 @@ export function formatPosition(ticks, project) {
 /** Convert a time value with unit into ticks. unit: steps (16ths) | beats | bars | ticks */
 export function toTicks(value, unit = 'steps', project) {
   const v = Number(value);
-  if (!Number.isFinite(v)) throw new Error(`Invalid time value "${value}"`);
+  if (!Number.isFinite(v)) throw new Error(`时间值不对：「${value}」`);
   switch (unit) {
     case 'ticks': return Math.round(v);
     case 'beats': return Math.round(v * PPQ);

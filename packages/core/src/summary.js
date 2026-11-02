@@ -70,7 +70,7 @@ export function summarizeProject(project, { notes = true, maxNotes = 64 } = {}) 
         : `at bar ${r2(c.start / bar) + 1} for ${r2(c.length / bar)} bars`;
       return `${name} ${where}${c.mute ? ' (muted)' : ''} [${c.id}]`;
     });
-    lines.push(`  Track ${t + 1}${track?.name && track.name !== `Track ${t + 1}` ? ` "${track.name}"` : ''}${track?.mute ? ' (MUTED)' : ''}: ${items.join('; ')}`);
+    lines.push(`  轨道 ${t + 1}${track?.name && track.name !== `轨道 ${t + 1}` ? ` "${track.name}"` : ''}${track?.mute ? '（已静音）' : ''}：${items.join('；')}`);
   }
   if (project.markers?.length) {
     lines.push(`MARKERS: ${project.markers.map((m) => `${m.name} @ bar ${r2(m.tick / bar) + 1} [${m.id}]`).join(' · ')}`);

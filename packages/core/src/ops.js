@@ -5,10 +5,7 @@ import { clamp, num, MIN_BPM, MAX_BPM, MAX_INSERTS, MAX_TRACKS, MAX_EFFECTS_PER_
 import { uid } from './ids.js';
 import { INSTRUMENTS, makeInstrument, sanitizeParams } from './instruments.js';
 import { EFFECTS, createEffect } from './effects.js';
-import {
-  createChannel, createPattern, createClip, createTrack, createMixerInsert, createAutomation, createMarker,
-  normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS
-} from './model.js';
+import { createChannel, createPattern, createClip, createTrack, createMixerInsert, createAutomation, createMarker, normalizeProject, sanitizeNote, normalizeKey, audioClipFields, MAX_NUDGE_MS, MAX_MARKERS, isDefaultInsertName } from './model.js';
 import { SCALES } from './music.js';
 import { normalizeInsertSpatial, normalizeProjectSpatial, SPATIAL_PARAMS } from './spatial.js';
 
@@ -17,7 +14,7 @@ export const OP_TYPES = [
   'channel/add', 'channel/update', 'channel/remove', 'channel/move',
   'pattern/add', 'pattern/update', 'pattern/remove', 'pattern/move',
   'notes/add', 'notes/update', 'notes/remove', 'notes/set',
-  'track/add', 'track/update',
+  'track/add', 'track/update', 'track/remove',
   'clip/add', 'clip/update', 'clip/remove',
   'mixer/add', 'mixer/update',
   'effect/add', 'effect/update', 'effect/remove', 'effect/move',
@@ -85,17 +82,17 @@ function req(cond, msg) {
 
 function chan(d, id) {
   const c = d.channels.find((x) => x.id === id);
-  req(c, `Channel ${id} not found`);
+  req(c, `找不到通道 ${id}`);
   return c;
 }
 function pat(d, id) {
   const p = d.patterns.find((x) => x.id === id);
-  req(p, `Pattern ${id} not found`);
+  req(p, `找不到片段 ${id}`);
   return p;
 }
 function insert(d, index) {
   const m = Number.isInteger(index) ? d.mixer[index] : undefined;
-  req(m, `Mixer insert ${index ?? '(missing index)'} not found (inserts 0..${d.mixer.length - 1})`);
+  req(m, `找不到混音台通道条 ${index ?? '（没给序号）'}（通道条 0..${d.mixer.length - 1}）`);
   return m;
 }
 
@@ -134,13 +131,13 @@ function patchChannel(d, c, patch) {
   if ('swingMix' in patch) c.swingMix = num(patch.swingMix, c.swingMix ?? 1, 0, 1);
   if ('mixerTrack' in patch) {
     const t = Math.round(num(patch.mixerTrack, 0));
-    req(t >= 0 && t < d.mixer.length, `Mixer insert ${t} does not exist (0..${d.mixer.length - 1})`);
+    req(t >= 0 && t < d.mixer.length, `混音台通道条 ${t} 不存在（0..${d.mixer.length - 1}）`);
     c.mixerTrack = t;
   }
   if (patch.instrument) {
     const ins = patch.instrument;
     const kind = ins.kind || c.instrument.kind;
-    req(INSTRUMENTS[kind], `Unknown instrument "${kind}"`);
+    req(INSTRUMENTS[kind], `不认识的乐器「${kind}」`);
     const kindChanged = kind !== c.instrument.kind;
     if (kind === 'plugin') {
       // values were checked against the plugin's manifest by the caller (MCP/UI); stored loosely here
@@ -169,56 +166,56 @@ function patchMixer(d, index, m, patch) {
   if ('solo' in patch) m.solo = !!patch.solo;
   if ('output' in patch && index !== 0) {
     const to = Math.round(num(patch.output, 0));
-    req(to >= 0 && to < d.mixer.length, `Mixer insert ${to} does not exist`);
-    req(!createsCycle(d.mixer, index, to), `Routing insert ${index} -> ${to} would create a feedback loop`);
+    req(to >= 0 && to < d.mixer.length, `混音台通道条 ${to} 不存在`);
+    req(!createsCycle(d.mixer, index, to), `把通道条 ${index} 路由到 ${to} 会形成回路（声音绕一圈回自己）`);
     m.output = to;
   }
   if ('sends' in patch && index !== 0) {
     const sends = [];
     for (const s of patch.sends || []) {
       const to = Math.round(num(s.to, -1));
-      req(to >= 0 && to < d.mixer.length && to !== index, `Invalid send target ${s.to}`);
+      req(to >= 0 && to < d.mixer.length && to !== index, `发送目标 ${s.to} 不对`);
       const probe = d.mixer.map((x, i) => (i === index ? { ...x, sends } : x));
-      req(!createsCycle(probe, index, to), `Send ${index} -> ${to} would create a feedback loop`);
+      req(!createsCycle(probe, index, to), `从 ${index} 发送到 ${to} 会形成回路`);
       sends.push({ to, amount: num(s.amount, 0.5, 0, 1) });
     }
     m.sends = sends;
   }
   if ('spatial' in patch && index !== 0) {
-    req(patch.spatial && typeof patch.spatial === 'object', 'spatial must be an object { enabled, x, y, z, lfe }');
+    req(patch.spatial && typeof patch.spatial === 'object', '空间设置必须是一个对象 { enabled, x, y, z, lfe }');
     m.spatial = normalizeInsertSpatial({ ...normalizeInsertSpatial(m.spatial, m.pan), ...patch.spatial }, m.pan);
   }
 }
 
 function sanitizeTarget(d, t) {
-  req(t && typeof t === 'object', 'Automation target required');
+  req(t && typeof t === 'object', '必须指定自动化目标');
   const type = t.type;
   if (type === 'channel') {
     chan(d, t.id);
-    req(['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'].includes(t.param), 'Channel automation param must be volume, pan, pitch, filterCutoff or filterRes');
+    req(['volume', 'pan', 'filterCutoff', 'filterRes', 'pitch'].includes(t.param), '通道自动化参数只能是 volume、pan、pitch、filterCutoff 或 filterRes');
     return { type, id: t.id, param: t.param };
   }
   if (type === 'mixer') {
     insert(d, t.index);
-    req(['volume', 'pan'].includes(t.param) || (t.index > 0 && SPATIAL_PARAMS[t.param]), `Mixer automation param must be volume, pan${t.index > 0 ? ', spatialX, spatialY or spatialZ' : ''}`);
+    req(['volume', 'pan'].includes(t.param) || (t.index > 0 && SPATIAL_PARAMS[t.param]), `混音台自动化参数只能是 volume、pan${t.index > 0 ? '、spatialX、spatialY 或 spatialZ' : ''}`);
     return { type, index: t.index, param: t.param };
   }
   if (type === 'effect') {
     const m = insert(d, t.index);
     const fx = m.effects.find((e) => e.id === t.effectId);
-    req(fx, `Effect ${t.effectId} not found on insert ${t.index}`);
-    if (fx.type === 'plugin') req(typeof fx.params[t.param] === 'number', `Param "${t.param}" of the plugin effect is not a number`);
+    req(fx, `通道条 ${t.index} 上没有效果器 ${t.effectId}`);
+    if (fx.type === 'plugin') req(typeof fx.params[t.param] === 'number', `插件效果器的参数「${t.param}」不是数字`);
     else {
       const p = EFFECTS[fx.type].params.find((x) => x.key === t.param);
-      req(p && p.automatable, `Param "${t.param}" of ${fx.type} is not automatable`);
+      req(p && p.automatable, `${fx.type} 的参数「${t.param}」不能画自动化`);
     }
     return { type, index: t.index, effectId: t.effectId, param: t.param };
   }
   if (type === 'master') {
-    req(['volume', 'pan'].includes(t.param), 'Master automation param must be volume or pan');
+    req(['volume', 'pan'].includes(t.param), '主输出自动化参数只能是 volume 或 pan');
     return { type, param: t.param };
   }
-  throw new Error(`Invalid automation target type "${type}"`);
+  throw new Error(`自动化目标类型不对：「${type}」`);
 }
 
 function sanitizePoints(points, length) {
@@ -229,7 +226,7 @@ function sanitizePoints(points, length) {
 
 /** Apply one op to an immer draft. */
 export function applyOp(d, op) {
-  req(op && typeof op.type === 'string', 'Op must have a type');
+  req(op && typeof op.type === 'string', '操作必须带一个 type');
   switch (op.type) {
     case 'project/update': {
       const p = op.patch || {};
@@ -238,20 +235,20 @@ export function applyOp(d, op) {
       if ('swing' in p) d.swing = num(p.swing, d.swing, 0, 1);
       if ('key' in p) {
         const k = normalizeKey(p.key);
-        req(k, `Invalid key "${p.key}": use a root note such as C, F#, Bb (set major/minor with scale)`);
+        req(k, `调号不对：「${p.key}」。写成 C、F#、Bb 这样的主音（大小调由 scale 决定）`);
         d.key = k;
       }
       if ('scale' in p) {
-        req(SCALES[p.scale], `Unknown scale "${p.scale}". Known: ${Object.keys(SCALES).join(', ')}`);
+        req(SCALES[p.scale], `不认识的音阶「${p.scale}」。已知：${Object.keys(SCALES).join('、')}`);
         d.scale = p.scale;
       }
       if ('spatial' in p) {
-        req(p.spatial && typeof p.spatial === 'object', 'spatial must be an object { enabled, monitor }');
+        req(p.spatial && typeof p.spatial === 'object', '空间设置必须是一个对象 { enabled, monitor }');
         d.spatial = normalizeProjectSpatial({ ...normalizeProjectSpatial(d.spatial), ...p.spatial });
       }
       if ('timeSig' in p && Array.isArray(p.timeSig)) {
         const [a, b] = p.timeSig.map((x) => Math.round(num(x, 4)));
-        req(a >= 1 && a <= 32 && [2, 4, 8, 16].includes(b), 'Invalid time signature');
+        req(a >= 1 && a <= 32 && [2, 4, 8, 16].includes(b), '拍号不对');
         d.timeSig = [a, b];
       }
       return;
@@ -272,7 +269,7 @@ export function applyOp(d, op) {
         for (let i = 1; i < d.mixer.length; i++) if (!used.has(i) && !d.mixer[i].effects.length) { c.mixerTrack = i; break; }
       }
       if (c.mixerTrack >= d.mixer.length) c.mixerTrack = 0;
-      if (op.nameInsert && c.mixerTrack > 0 && /^Insert \d+$/.test(d.mixer[c.mixerTrack].name)) d.mixer[c.mixerTrack].name = c.name;
+      if (op.nameInsert && c.mixerTrack > 0 && isDefaultInsertName(d.mixer[c.mixerTrack].name)) d.mixer[c.mixerTrack].name = c.name;
       const idx = op.index ?? d.channels.length;
       d.channels.splice(clamp(idx, 0, d.channels.length), 0, c);
       return;
@@ -283,7 +280,7 @@ export function applyOp(d, op) {
     }
     case 'channel/remove': {
       const i = d.channels.findIndex((c) => c.id === op.id);
-      req(i >= 0, `Channel ${op.id} not found`);
+      req(i >= 0, `找不到通道 ${op.id}`);
       d.channels.splice(i, 1);
       for (const p of d.patterns) delete p.notes[op.id];
       // effects that pointed at it (a sidechain's trigger channel) fall back to "none"
@@ -299,7 +296,7 @@ export function applyOp(d, op) {
     }
     case 'channel/move': {
       const i = d.channels.findIndex((c) => c.id === op.id);
-      req(i >= 0, `Channel ${op.id} not found`);
+      req(i >= 0, `找不到通道 ${op.id}`);
       const [c] = d.channels.splice(i, 1);
       d.channels.splice(clamp(op.index, 0, d.channels.length), 0, c);
       return;
@@ -325,16 +322,16 @@ export function applyOp(d, op) {
       return;
     }
     case 'pattern/remove': {
-      req(d.patterns.length > 1, 'A project needs at least one pattern');
+      req(d.patterns.length > 1, '一个工程至少要有一个片段');
       const i = d.patterns.findIndex((p) => p.id === op.id);
-      req(i >= 0, `Pattern ${op.id} not found`);
+      req(i >= 0, `找不到片段 ${op.id}`);
       d.patterns.splice(i, 1);
       d.playlist.clips = d.playlist.clips.filter((c) => !(c.kind === 'pattern' && c.refId === op.id));
       return;
     }
     case 'pattern/move': {
       const i = d.patterns.findIndex((p) => p.id === op.id);
-      req(i >= 0, `Pattern ${op.id} not found`);
+      req(i >= 0, `找不到片段 ${op.id}`);
       const [p] = d.patterns.splice(i, 1);
       d.patterns.splice(clamp(op.index, 0, d.patterns.length), 0, p);
       return;
@@ -343,7 +340,7 @@ export function applyOp(d, op) {
       const p = pat(d, op.patternId);
       chan(d, op.channelId);
       const list = p.notes[op.channelId] || (p.notes[op.channelId] = []);
-      const cap = `Max ${MAX_NOTES_PER_CHANNEL} notes per channel in a pattern`;
+      const cap = `一个片段里每个通道最多 ${MAX_NOTES_PER_CHANNEL} 个音符`;
       req((op.notes?.length || 0) <= MAX_NOTES_PER_CHANNEL, cap);
       // replace an identical note (same key + start) instead of stacking duplicates — via an index, since a scan per
       // note would be quadratic on big patterns
@@ -383,23 +380,34 @@ export function applyOp(d, op) {
     case 'notes/set': {
       const p = pat(d, op.patternId);
       chan(d, op.channelId);
-      req((op.notes?.length || 0) <= MAX_NOTES_PER_CHANNEL, `Max ${MAX_NOTES_PER_CHANNEL} notes per channel in a pattern`);
+      req((op.notes?.length || 0) <= MAX_NOTES_PER_CHANNEL, `一个片段里每个通道最多 ${MAX_NOTES_PER_CHANNEL} 个音符`);
       p.notes[op.channelId] = (op.notes || []).map(sanitizeNote).sort((a, b) => a.start - b.start || a.key - b.key);
       return;
     }
     case 'track/add': {
-      req(d.playlist.tracks.length < MAX_TRACKS, `Max ${MAX_TRACKS} playlist tracks`);
+      req(d.playlist.tracks.length < MAX_TRACKS, `播放列表最多 ${MAX_TRACKS} 条轨道`);
       const count = Math.max(1, Math.min(op.ids?.length || op.count || 1, MAX_TRACKS - d.playlist.tracks.length));
       for (let i = 0; i < count; i++) d.playlist.tracks.push(createTrack(d.playlist.tracks.length, { ...(op.track || {}), id: op.ids?.[i] }));
       return;
     }
     case 'track/update': {
       const t = Number.isInteger(op.index) ? d.playlist.tracks[op.index] : undefined;
-      req(t, `Playlist track ${Number(op.index) + 1} doesn't exist (${d.playlist.tracks.length} tracks, max ${MAX_TRACKS})`);
+      req(t, `播放列表没有第 ${Number(op.index) + 1} 条轨道（现有 ${d.playlist.tracks.length} 条，最多 ${MAX_TRACKS} 条）`);
       const patch = op.patch || {};
       if ('name' in patch) t.name = str(patch.name) || t.name;
       if ('color' in patch) t.color = patch.color ? str(patch.color, 16) : null;
       if ('mute' in patch) t.mute = !!patch.mute;
+      return;
+    }
+    case 'track/remove': {
+      const index = op.index;
+      req(Number.isInteger(index) && d.playlist.tracks[index], `播放列表没有第 ${Number(index) + 1} 条轨道`);
+      req(d.playlist.tracks.length > 1, '至少要保留一条轨道');
+      d.playlist.tracks.splice(index, 1);
+      // clips on the track go with it; the ones below move up a row
+      d.playlist.clips = d.playlist.clips
+        .filter((c) => c.track !== index)
+        .map((c) => (c.track > index ? { ...c, track: c.track - 1 } : c));
       return;
     }
     case 'clip/add': {
@@ -411,7 +419,7 @@ export function applyOp(d, op) {
           // id derived from the clip so every replica creates the same track
           d.playlist.tracks.push(createTrack(d.playlist.tracks.length, { id: `${clip.id}-t${d.playlist.tracks.length}` }));
         }
-        req(clip.track < d.playlist.tracks.length, `Track ${clip.track + 1} is out of range (max ${MAX_TRACKS} tracks)`);
+        req(clip.track < d.playlist.tracks.length, `轨道 ${clip.track + 1} 超出范围（最多 ${MAX_TRACKS} 条轨道）`);
         d.playlist.clips.push(clip);
       }
       return;
@@ -420,7 +428,7 @@ export function applyOp(d, op) {
       const updates = op.clips || [{ id: op.id, ...op.patch }];
       for (const u of updates) {
         const c = d.playlist.clips.find((x) => x.id === u.id);
-        req(c, `Clip ${u.id} not found`);
+        req(c, `播放列表里找不到片段块 ${u.id}`);
         if ('start' in u) c.start = Math.max(0, Math.round(num(u.start, c.start)));
         if ('length' in u) c.length = Math.max(1, Math.round(num(u.length, c.length)));
         if ('offset' in u) c.offset = Math.max(0, Math.round(num(u.offset, c.offset)));
@@ -428,7 +436,7 @@ export function applyOp(d, op) {
         if (c.kind === 'audio' && ['gain', 'fadeIn', 'fadeOut', 'rate'].some((k) => k in u)) Object.assign(c, audioClipFields(u, audioClipFields(c)));
         if ('track' in u) {
           const t = Math.round(num(u.track, c.track));
-          req(t >= 0 && t < d.playlist.tracks.length, `Track ${t + 1} is out of range (${d.playlist.tracks.length} tracks)`);
+          req(t >= 0 && t < d.playlist.tracks.length, `轨道 ${t + 1} 超出范围（共 ${d.playlist.tracks.length} 条轨道）`);
           c.track = t;
         }
         if ('refId' in u) {
@@ -447,7 +455,7 @@ export function applyOp(d, op) {
     case 'mixer/add': {
       const count = Math.max(1, op.ids?.length || op.count || 1);
       for (let i = 0; i < count; i++) {
-        req(d.mixer.length <= MAX_INSERTS, `Max ${MAX_INSERTS} mixer inserts`);
+        req(d.mixer.length <= MAX_INSERTS, `混音台最多 ${MAX_INSERTS} 条通道条`);
         d.mixer.push(createMixerInsert(d.mixer.length, { ...(op.insert || {}), id: op.ids?.[i] }));
       }
       return;
@@ -459,7 +467,7 @@ export function applyOp(d, op) {
     case 'effect/add': {
       const m = insert(d, op.index);
       if (op.effect?.id && m.effects.some((e) => e.id === op.effect.id)) return; // idempotent
-      req(m.effects.length < MAX_EFFECTS_PER_INSERT, `Max ${MAX_EFFECTS_PER_INSERT} effects per insert`);
+      req(m.effects.length < MAX_EFFECTS_PER_INSERT, `每条通道条最多 ${MAX_EFFECTS_PER_INSERT} 个效果器`);
       const fx = createEffect(op.effect.type, op.effect.params, { id: op.effect.id, enabled: op.effect.enabled, plugin: op.effect.plugin });
       m.effects.splice(clamp(op.position ?? m.effects.length, 0, m.effects.length), 0, fx);
       return;
@@ -467,7 +475,7 @@ export function applyOp(d, op) {
     case 'effect/update': {
       const m = insert(d, op.index);
       const fx = m.effects.find((e) => e.id === op.effectId);
-      req(fx, `Effect ${op.effectId} not found`);
+      req(fx, `找不到效果器 ${op.effectId}`);
       const patch = op.patch || {};
       if ('enabled' in patch) fx.enabled = !!patch.enabled;
       if (patch.params) Object.assign(fx.params, fx.type === 'plugin' ? createEffect('plugin', patch.params).params : sanitizeParams(EFFECTS[fx.type].params, patch.params));
@@ -484,7 +492,7 @@ export function applyOp(d, op) {
     case 'effect/move': {
       const m = insert(d, op.index);
       const i = m.effects.findIndex((e) => e.id === op.effectId);
-      req(i >= 0, `Effect ${op.effectId} not found`);
+      req(i >= 0, `找不到效果器 ${op.effectId}`);
       const [fx] = m.effects.splice(i, 1);
       m.effects.splice(clamp(op.position, 0, m.effects.length), 0, fx);
       return;
@@ -498,7 +506,7 @@ export function applyOp(d, op) {
     }
     case 'automation/update': {
       const a = d.automations.find((x) => x.id === op.id);
-      req(a, `Automation ${op.id} not found`);
+      req(a, `找不到自动化 ${op.id}`);
       const patch = op.patch || {};
       if ('name' in patch) a.name = str(patch.name) || a.name;
       if ('color' in patch) a.color = str(patch.color, 16);
@@ -517,7 +525,7 @@ export function applyOp(d, op) {
       d.markers ||= [];
       for (const m of op.markers || [op.marker]) {
         if (m?.id && d.markers.some((x) => x.id === m.id)) continue; // idempotent
-        req(d.markers.length < MAX_MARKERS, `Max ${MAX_MARKERS} markers`);
+        req(d.markers.length < MAX_MARKERS, `最多 ${MAX_MARKERS} 个标记`);
         d.markers.push(createMarker(m || {}));
       }
       d.markers.sort((a, b) => a.tick - b.tick);
@@ -525,7 +533,7 @@ export function applyOp(d, op) {
     }
     case 'marker/update': {
       const m = (d.markers || []).find((x) => x.id === op.id);
-      req(m, `Marker ${op.id} not found`);
+      req(m, `找不到标记 ${op.id}`);
       const patch = op.patch || {};
       if ('name' in patch) m.name = str(patch.name) || m.name;
       if ('tick' in patch) m.tick = Math.max(0, Math.round(num(patch.tick, m.tick)));
@@ -538,13 +546,13 @@ export function applyOp(d, op) {
       return;
     }
     default:
-      throw new Error(`Unknown op type "${op.type}"`);
+      throw new Error(`不认识的操作类型「${op.type}」`);
   }
 }
 
 function validateClipRef(d, clip) {
-  if (clip.kind === 'pattern') req(d.patterns.some((p) => p.id === clip.refId), `Pattern ${clip.refId} not found`);
-  if (clip.kind === 'automation') req(d.automations.some((a) => a.id === clip.refId), `Automation ${clip.refId} not found`);
+  if (clip.kind === 'pattern') req(d.patterns.some((p) => p.id === clip.refId), `找不到片段 ${clip.refId}`);
+  if (clip.kind === 'automation') req(d.automations.some((a) => a.id === clip.refId), `找不到自动化 ${clip.refId}`);
   // audio clips reference the global sample library; not validated here
 }
 
@@ -590,6 +598,7 @@ export function describeOps(ops, project) {
       case 'pattern/move': return `Moved pattern ${name(project?.patterns, op.id)}`;
       case 'track/add': return `Added ${op.ids?.length || op.count || 1} playlist track(s)`;
       case 'track/update': return `Edited playlist track ${op.index + 1}${op.patch?.name ? ` "${op.patch.name}"` : ''}`;
+      case 'track/remove': return `Deleted playlist track ${op.index + 1}`;
       case 'mixer/add': return `Added ${op.ids?.length || op.count || 1} mixer insert(s)`;
       case 'automation/add': return `Added automation ${op.automation?.name || ''}`;
       case 'automation/update': return `Edited automation ${name(project?.automations, op.id)}`;

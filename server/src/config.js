@@ -56,6 +56,8 @@ export function loadConfig(env = process.env) {
     ffmpegTimeoutSec: envInt(env.FFMPEG_TIMEOUT_SEC, 300, 5, 24 * 3600),
     ffmpegMaxJobs: envInt(env.FFMPEG_MAX_JOBS, 2, 1, 64),
     // users may install plugins (admins can still switch it off in Settings → Server); "false" disables them entirely
-    pluginsEnabled: !/^(false|0|off|no)$/i.test(env.PLUGINS_ENABLED || 'true')
+    pluginsEnabled: !/^(false|0|off|no)$/i.test(env.PLUGINS_ENABLED || 'true'),
+    // 免登录开放模式（默认）：打开工作室直接进工作台（课堂/演示场景）。设 DISABLE_AUTH=false|0|off|no 恢复账号登录。
+    disableAuth: !/^(false|0|off|no)$/i.test(env.DISABLE_AUTH || 'true')
   };
 }

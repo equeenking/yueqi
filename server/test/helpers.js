@@ -6,12 +6,17 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { createServer } from '../src/index.js';
 import { loadConfig } from '../src/config.js';
+import { zhLegacyName } from '@greanteadawy/core';
+
+/** 按名字找通道/片段：旧英文名（Kick/Keys…）在存档载入时会译成中文，两种写法都认。 */
+export const findNamed = (list, name) => list.find((x) => x.name === name || x.name === zhLegacyName(name));
 
 export async function startServer(env = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gtd-test-'));
   // a data dir that doesn't exist yet: the server must create it on first run
   const dataDir = path.join(root, 'data');
-  const ctx = await createServer({ ...loadConfig(env), dataDir, port: 0, clientDist: path.join(root, 'none') });
+  // tests exercise the real login/setup flows: keep the (default-on) open mode off unless a test asks for it
+  const ctx = await createServer({ ...loadConfig({ DISABLE_AUTH: 'false', ...env }), dataDir, port: 0, clientDist: path.join(root, 'none') });
   await new Promise((r) => ctx.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${ctx.server.address().port}`;
   return {

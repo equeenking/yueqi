@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyOps, ticksPerBar } from '@greanteadawy/core';
-import { startServer, agent, mcpClient, callTool, openSocket, waitFor } from './helpers.js';
+import { startServer, agent, mcpClient, callTool, openSocket, waitFor, findNamed } from './helpers.js';
 
 let srv;
 let user;
@@ -32,7 +32,7 @@ const project = async () => (await user.get(`/api/projects/${pid}`)).body;
 const fails = (p, re) => p.then(() => assert.fail('expected an error'), (e) => assert.match(e.message, re));
 
 test('an empty rhythm is an error, not a frozen server', async () => {
-  await fails(call('add_chords', { pattern: 'Song', channel: 'Keys', chords: ['Am'], style: 'rhythm', rhythm: ' | ' }), /no steps/);
+  await fails(call('add_chords', { pattern: 'Song', channel: 'Keys', chords: ['Am'], style: 'rhythm', rhythm: ' | ' }), /没有一步/);
   await fails(call('add_bassline', { pattern: 'Song', channel: 'Bass', chords: ['Am'], rhythm: '--------' }), /no hits/);
   assert.equal((await user.get('/api/health')).status, 200);
 });
@@ -45,7 +45,7 @@ test('writing a later section keeps the earlier one (range replace)', async () =
   await call('add_chords', { pattern: 'Song', channel: 'Keys', chords: ['Am', 'F'], stepsPerChord: 16 });
   await call('add_chords', { pattern: 'Song', channel: 'Keys', chords: ['C', 'G'], stepsPerChord: 16, start: 32 });
   const pt = (await project()).patterns.find((x) => x.name === 'Song');
-  const keys = (await project()).channels.find((c) => c.name === 'Keys').id;
+  const keys = findNamed((await project()).channels, 'Keys').id;
   const starts = [...new Set(pt.notes[keys].map((n) => n.start))].sort((a, b) => a - b);
   assert.deepEqual(starts, [0, 384, 768, 1152]);
 });
@@ -66,10 +66,10 @@ test('transform double repeats every channel; shift wraps', async () => {
   assert.match(await call('transform_notes', { pattern: 'Beat', channel: 'Bass', action: 'double' }), /2 bars \(every channel/);
   const p = await project();
   const pt = p.patterns.find((x) => x.name === 'Beat');
-  const kick = p.channels.find((c) => c.name === 'Kick').id;
+  const kick = findNamed(p.channels, 'Kick').id;
   assert.equal(pt.notes[kick].length, 8);
   await call('transform_notes', { pattern: 'Beat', channel: 'Bass', action: 'shift', amount: -2 });
-  const bass = p.channels.find((c) => c.name === 'Bass').id;
+  const bass = findNamed(p.channels, 'Bass').id;
   const after2 = (await project()).patterns.find((x) => x.name === 'Beat').notes[bass].map((n) => n.start).sort((a, b) => a - b);
   assert.deepEqual(after2, [336, 720]); // -2 steps wrapped to the end
   await fails(call('transform_notes', { pattern: 'Beat', channel: 'Bass', action: 'transpose' }), /needs an amount/);
@@ -143,9 +143,9 @@ test('create_project validates before creating anything', async () => {
 });
 
 test('effect params out of range are rejected; duplicate sends too', async () => {
-  await fails(call('add_effect', { insert: 1, type: 'reverb', params: { mix: 5 } }), /between 0 and 1/);
-  await fails(call('set_mixer', { insert: 2, sends: [{ to: 4, amount: 0.5 }, { to: 4, amount: 0.3 }] }), /only once/);
-  await fails(call('add_channel', { name: 'Nowhere', instrument: 'synth', mixerTrack: 60 }), /does not exist/);
+  await fails(call('add_effect', { insert: 1, type: 'reverb', params: { mix: 5 } }), /0 到 1 之间/);
+  await fails(call('set_mixer', { insert: 2, sends: [{ to: 4, amount: 0.5 }, { to: 4, amount: 0.3 }] }), /只能出现一次/);
+  await fails(call('add_channel', { name: 'Nowhere', instrument: 'synth', mixerTrack: 60 }), /混音台通道条 60 不存在/);
 });
 
 test('round 2: transforms stay inside the loop; 64-bar cap; slash chords keep their bass', async () => {
@@ -156,12 +156,12 @@ test('round 2: transforms stay inside the loop; 64-bar cap; slash chords keep th
   await call('add_notes', { pattern: 'Loop1', channel: 'Keys', notes: [{ note: 'C4', start: 15, length: 1 }] });
   await call('transform_notes', { pattern: 'Loop1', channel: 'Keys', action: 'quantize', amount: 4 });
   assert.match(await call('get_pattern', { pattern: 'Loop1' }), /16 steps \(1 bars\)/);
-  await fails(call('add_notes', { pattern: 'Loop1', channel: 'Keys', notes: [{ note: 'C4', start: 2000 }] }), /at most 64 bars/);
+  await fails(call('add_notes', { pattern: 'Loop1', channel: 'Keys', notes: [{ note: 'C4', start: 2000 }] }), /片段最长 64 小节/);
   await call('create_pattern', { name: 'Slash', bars: 4 });
   await call('add_chords', { pattern: 'Slash', channel: 'Keys', chords: ['Am', 'C/G', 'F/A', 'G/B'] });
   const p = await project();
   const pt = p.patterns.find((x) => x.name === 'Slash');
-  const keys = p.channels.find((c) => c.name === 'Keys').id;
+  const keys = findNamed(p.channels, 'Keys').id;
   const bar = ticksPerBar(p);
   for (const [i, pc] of [[1, 7], [2, 9], [3, 11]]) {
     const chord = pt.notes[keys].filter((n) => n.start === i * bar).map((n) => n.key).sort((a, b) => a - b);
@@ -171,10 +171,11 @@ test('round 2: transforms stay inside the loop; 64-bar cap; slash chords keep th
 });
 
 test('round 2: validation and naming', async () => {
-  await fails(call('update_channel', { channel: 'Keys', params: { ratio: 99999 } }), /between/);
-  const res = await call('add_channel', { name: 'Kick', instrument: 'kick' });
-  assert.match(res, /"Kick 2"/);
-  await fails(call('update_channel', { channel: 'Kick 2', name: 'kick' }), /already exists/);
+  await fails(call('update_channel', { channel: 'Keys', params: { ratio: 99999 } }), /之间/);
+  // 名字必须唯一：同名通道自动加序号，改名撞到别人要报错
+  await call('add_channel', { name: 'Twin', instrument: 'kick' });
+  assert.match(await call('add_channel', { name: 'Twin', instrument: 'kick' }), /「Twin 2」/);
+  await fails(call('update_channel', { channel: 'Twin 2', name: 'Twin' }), /已有同名/);
   const auto = await call('add_automation', { target: { type: 'channel', channel: 'Keys', param: 'filterCutoff' }, points: [{ bar: 0, value: 0.2 }, { bar: 1, value: 0.9 }], startBar: 1 });
   const name = auto.match(/automation "([^"]+)"/)[1];
   assert.match(await call('update_automation', { automation: name, name: 'Sweep' }), /Sweep/);

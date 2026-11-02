@@ -7,8 +7,8 @@ import {
 import { z, ok, projectIdArg, unitArg, annotations as A, normVelocity, growPatternOp, assertFitsPattern, resolveChords, steps, barsOf, uniqueName, assertNameFree } from '../util.js';
 
 const RATE_TICKS = { '1/8': 48, '1/12': 32, '1/16': 24, '1/24': 16, '1/32': 12, '1/48': 8, '1/64': 6 };
-const velocityArg = z.number().min(0).max(127).optional().describe('0..1 (1 = full), or MIDI 2..127');
-const replaceArg = z.boolean().optional().describe("Default true: first clear this channel's notes inside the range being written (the rest of the pattern is kept). false = add on top.");
+const velocityArg = z.number().min(0).max(127).optional().describe('0..1（1＝最响），或 MIDI 的 2..127');
+const replaceArg = z.boolean().optional().describe('默认是：先把这个通道在要写入范围内的音符清掉（范围外的保留）。false＝直接往上叠。');
 
 /** Notes of a channel outside [lo, hi) — kept when a range is rewritten. */
 const outside = (pt, channelId, lo, hi) => (pt.notes[channelId] || []).filter((n) => n.start < lo || n.start >= hi);
@@ -16,19 +16,19 @@ const outside = (pt, channelId, lo, hi) => (pt.notes[channelId] || []).filter((n
 export function registerNoteTools({ tool, backend, load }) {
   // ---------------------------------------------------------------- patterns
   tool('create_pattern', {
-    title: 'Create pattern',
-    description: 'Create a new empty pattern (a reusable section of notes for any channels).',
+    title: '新建片段',
+    description: '新建一个空片段（一段可复用的音符，任何通道都能用）。',
     inputSchema: {
       projectId: projectIdArg,
       name: z.string().min(1).max(64),
-      bars: z.number().min(0.25).max(64).optional().describe('Length in bars (default 1)'),
+      bars: z.number().min(0.25).max(64).optional().describe('长度，单位小节（默认 1）'),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
     },
     annotations: A.edit
   }, async ({ projectId, name, bars = 1, color }) => {
     const p = await load(projectId);
     const length = Math.min(Math.round(bars * ticksPerBar(p)), maxPatternLength(p));
-    if (p.patterns.some((x) => x.name.toLowerCase() === name.toLowerCase())) throw new Error(`A pattern named "${name}" already exists`);
+    if (p.patterns.some((x) => x.name.toLowerCase() === name.toLowerCase())) throw new Error(`已有同名的片段「${name}」`);
     // reuse the untouched default "Pattern 1" of a fresh project instead of leaving an empty pattern behind
     const blank = p.patterns.length === 1 && p.patterns[0].name === 'Pattern 1' && !Object.values(p.patterns[0].notes).some((l) => l.length)
       && !p.playlist.clips.some((c) => c.refId === p.patterns[0].id) ? p.patterns[0] : null;
@@ -42,15 +42,15 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('update_pattern', {
-    title: 'Update pattern',
-    description: 'Rename, recolor or resize a pattern. Shrinking below existing notes needs trimNotes=true (those notes are deleted).',
+    title: '修改片段',
+    description: '给片段改名、改颜色或改长度。缩短到已有音符之外时需要 trimNotes=true（那些音符会被删掉）。',
     inputSchema: {
       projectId: projectIdArg,
-      pattern: z.string().describe('Pattern id or name'),
+      pattern: z.string().describe('片段 id 或名字'),
       name: z.string().min(1).max(64).optional(),
       bars: z.number().min(0.25).max(64).optional(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-      trimNotes: z.boolean().optional().describe('When shrinking: delete notes that start after the new end')
+      trimNotes: z.boolean().optional().describe('缩短时：删掉起点超出新结尾的音符')
     },
     annotations: A.edit
   }, async ({ projectId, pattern, name, bars, color, trimNotes = false }) => {
@@ -59,7 +59,7 @@ export function registerNoteTools({ tool, backend, load }) {
     const patch = {};
     const ops = [];
     if (name) {
-      assertNameFree(p.patterns, name, 'pattern', pt);
+      assertNameFree(p.patterns, name, '片段', pt);
       patch.name = name;
     }
     if (color) patch.color = color;
@@ -78,8 +78,8 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('duplicate_pattern', {
-    title: 'Duplicate pattern',
-    description: "Copy a pattern (all channels' notes) to a new pattern — for variations (e.g. \"Drums B\" with a fill).",
+    title: '复制片段',
+    description: '把一个片段（所有通道的音符）复制成一个新片段——用来做变体（比如带过门的「鼓组 B」）。',
     inputSchema: { projectId: projectIdArg, pattern: z.string(), name: z.string().min(1).max(64).optional() },
     annotations: A.edit
   }, async ({ projectId, pattern, name }) => {
@@ -88,15 +88,15 @@ export function registerNoteTools({ tool, backend, load }) {
     const id = uid('pat');
     const notes = {};
     for (const [cid, list] of Object.entries(src.notes)) notes[cid] = list.map((n) => ({ ...n, id: uid('n') }));
-    if (name) assertNameFree(p.patterns, name, 'pattern');
+    if (name) assertNameFree(p.patterns, name, '片段');
     const newName = name || uniqueName(p.patterns, `${src.name} 2`);
     await backend.applyOps(p.id, [{ type: 'pattern/add', index: p.patterns.indexOf(src) + 1, pattern: { id, name: newName, color: src.color, length: src.length, notes } }]);
     return ok(`Duplicated "${src.name}" as "${newName}" [${id}].`);
   });
 
   tool('delete_pattern', {
-    title: 'Delete pattern',
-    description: 'Delete a pattern and its playlist clips.',
+    title: '删除片段',
+    description: '删掉一个片段以及它在播放列表里的片段块。',
     inputSchema: { projectId: projectIdArg, pattern: z.string() },
     annotations: A.destructive
   }, async ({ projectId, pattern }) => {
@@ -107,9 +107,9 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('get_pattern', {
-    title: 'Get pattern',
-    description: 'Detailed view of one pattern: per channel a step grid (drums) and the full note list with note ids, names, start/length in steps and velocity — use the ids with update_notes / delete_notes.',
-    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('Only this channel') },
+    title: '查看片段',
+    description: '看一个片段的细节：每个通道给出步进格（鼓组）和完整音符列表（带音符 id、音名、起点／长度（步）与力度）——这些 id 可以直接给 update_notes / delete_notes 用。',
+    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('只看这一个通道') },
     annotations: A.readOnly
   }, async ({ projectId, pattern, channel }) => {
     const p = await load(projectId);
@@ -128,14 +128,14 @@ export function registerNoteTools({ tool, backend, load }) {
 
   // ---------------------------------------------------------------- writing notes
   tool('write_drums', {
-    title: 'Write drum steps',
-    description: 'Program the step sequencer for one or more channels in a pattern using step strings ("x---x---x---x---"). One character per 16th step: x hit, X accent, o ghost, 1-9 velocity, - or . rest; spaces and | are ignored. Replaces those channels\' notes in the pattern (mode "merge" adds instead). Steps per bar follow the time signature (16 in 4/4, 12 in 3/4 or 6/8); a longer string extends the pattern.',
+    title: '写步进鼓点',
+    description: '用步进串（如 "x---x---x---x---"）给片段里一个或多个通道编程。一个字符＝一个十六分音符步：x 敲击，X 重音，o 弱击，1-9 力度，- 或 . 休止；空格和 | 会被忽略。默认替换这些通道在该片段里的音符（mode 用 "merge" 則是叠加）。每小节步数跟着拍号走（4/4 是 16，3/4 或 6/8 是 12）；串更长就把片段拉长。',
     inputSchema: {
       projectId: projectIdArg,
-      pattern: z.string().describe('Pattern id or name'),
-      tracks: z.record(z.string(), z.string().max(8192)).describe('Map of channel name/id -> step string, e.g. {"Kick":"x---x---x---x---","Snare":"----x-------x---"}'),
+      pattern: z.string().describe('片段 id 或名字'),
+      tracks: z.record(z.string(), z.string().max(8192)).describe('通道名／id → 步进串 的对照表，例如 {"底鼓":"x---x---x---x---","军鼓":"----x-------x---"}'),
       mode: z.enum(['replace', 'merge']).optional(),
-      note: z.union([z.string(), z.number()]).optional().describe("Note to trigger (default: each channel's step note). Use other notes to pitch drums.")
+      note: z.union([z.string(), z.number()]).optional().describe('要触发的音符（默认用各通道自己的步进音符）。给别的音可以让鼓组变调。')
     },
     annotations: A.edit
   }, async ({ projectId, pattern, tracks, mode = 'replace', note }) => {
@@ -164,16 +164,16 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   const noteSchema = z.object({
-    note: z.union([z.string(), z.number()]).describe('Note name (C4, F#3) or MIDI number'),
-    start: z.number().min(0).describe('Start position (default unit: steps from pattern start)'),
-    length: z.number().positive().optional().describe('Length (default 1 step)'),
+    note: z.union([z.string(), z.number()]).describe('音名（C4、F#3）或 MIDI 音高数字'),
+    start: z.number().min(0).describe('起点位置（默认单位：从片段开头算起的步数）'),
+    length: z.number().positive().optional().describe('长度（默认 1 步）'),
     velocity: velocityArg,
-    pan: z.number().min(-1).max(1).optional().describe('Per-note pan')
+    pan: z.number().min(-1).max(1).optional().describe('单个音符的声像')
   });
 
   tool('add_notes', {
-    title: 'Add notes (piano roll)',
-    description: 'Write notes into a channel of a pattern (piano roll). Positions/lengths default to 16th-note steps. replace=true clears that channel in the pattern first. Notes past the pattern end extend the pattern.',
+    title: '添加音符（钢琴卷帘）',
+    description: '往片段里某个通道写音符（钢琴卷帘）。位置与长度默认按十六分音符步算。replace=true 会先清掉该通道在这个片段里的音符。音符超出片段结尾会把片段拉长。',
     inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string(), notes: z.array(noteSchema).min(1).max(2000), unit: unitArg, replace: z.boolean().optional() },
     annotations: A.edit
   }, async ({ projectId, pattern, channel, notes, unit = 'steps', replace = false }) => {
@@ -197,16 +197,16 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('write_melody', {
-    title: 'Write melody',
-    description: 'Write a monophonic line from a compact string: "C5:2 D5:2 Eb5:4 -:2 G5:6" — each token is note:lengthInSteps ("-" rest; suffix "!" = accent, "~" = slide: the note runs into the next one, so mono instruments with glide (808, bass, sitar, bansuri, erhu, shakuhachi…) slide there, e.g. "C4:4~ Db4:2"). Notes are placed back-to-back from `start`.',
+    title: '写旋律',
+    description: '用一串紧凑记号写单声部旋律："C5:2 D5:2 Eb5:4 -:2 G5:6"——每个记号是 音名:步数（"-" 休止；后缀 "!" 重音，"~" 滑音：这个音会滑进下一个音，所以带滑音的单音乐器（808、贝斯、西塔琴、印度竹笛、二胡、尺八…）会滑过去，例如 "C4:4~ Db4:2"）。音符从 start 起一个接一个排。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
       melody: z.string().min(1).max(20000),
-      start: z.number().min(0).optional().describe('Start step (default 0)'),
+      start: z.number().min(0).optional().describe('起始步（默认 0）'),
       velocity: velocityArg,
-      gate: z.number().min(0.1).max(1).optional().describe('Note length fraction (default 0.95; lower = staccato)'),
+      gate: z.number().min(0.1).max(1).optional().describe('音符长度占时值的比例（默认 0.95；越小越短促）'),
       replace: replaceArg
     },
     annotations: A.edit
@@ -229,24 +229,24 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('add_chords', {
-    title: 'Add chord progression',
-    description: `Write a chord progression into a channel. Chord symbols (Am, F, Cmaj7, G7, Dm9, Esus4, Bdim, C/E) or roman numerals in the project key (i, VI, bVII, V7, ii°); "-" = rest. Qualities: ${Object.keys(CHORD_TYPES).filter(Boolean).join(' ')}. Chords are voice-led smoothly around a register. Styles: block (sustained), rhythm (hit on each x of a step string), arp-up, arp-down, arp-updown, broken. Voicings: close (default), open (wider pads), drop2 (jazz/neo-soul keys), drop3, spread (cinematic: root low, tones opened up), shell (root-3rd-7th: lo-fi/jazz comping), rootless (no root + 9th: modern keys over a bassline).`,
+    title: '写和弦进行',
+    description: `往一个通道里写和弦进行。可以用和弦记号（Am、F、Cmaj7、G7、Dm9、Esus4、Bdim、C/E），也可以用工程调内的级数（i、VI、bVII、V7、ii°）；"-" 表示休止。可用性质：${Object.keys(CHORD_TYPES).filter(Boolean).join(' ')}。和弦会围绕一个音区做平滑的声部连接。风格：block（持续）、rhythm（按步进串里的每个 x 敲一下）、arp-up、arp-down、arp-updown、broken。排列法：close（默认）、open（更宽的铺底）、drop2（爵士／新灵魂键盘）、drop3、spread（电影感：根音放低，其余音张开）、shell（根音-三音-七音：lo-fi／爵士的伴奏）、rootless（不要根音、加九音：贝斯之上现代的键盘写法）。`,
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
       chords: z.array(z.string()).min(1).max(256),
-      stepsPerChord: z.number().min(1).max(1024).optional().describe('Default 16 (one bar per chord)'),
-      octave: z.number().int().min(0).max(8).optional().describe('Octave of the first chord root (default 4)'),
+      stepsPerChord: z.number().min(1).max(1024).optional().describe('默认 16（一个和弦占一小节）'),
+      octave: z.number().int().min(0).max(8).optional().describe('第一个和弦根音所在的八度（默认 4）'),
       style: z.enum(['block', 'rhythm', 'arp-up', 'arp-down', 'arp-updown', 'broken']).optional(),
-      voicing: z.enum(VOICINGS).optional().describe('How the chord tones are spread (default close)'),
-      inversion: z.number().int().min(0).max(4).optional().describe('Inversion of the first chord (the rest are voice-led from it); default 0'),
-      register: z.union([z.string(), z.number()]).optional().describe('Center pitch the voicings stay around, e.g. "E4" for mid keys, "C5" for airy pads (default: the first chord at octave)'),
-      rhythm: z.string().max(4096).optional().describe('For style=rhythm: step string restarted every chord, e.g. "x--x--x-"'),
-      arpRate: z.number().min(0.25).optional().describe('For arp styles: steps per arp note (default 2 = 8th notes)'),
+      voicing: z.enum(VOICINGS).optional().describe('和弦音怎么铺开（默认 close）'),
+      inversion: z.number().int().min(0).max(4).optional().describe('第一个和弦的转位（其余和弦从它出发做声部连接）；默认 0'),
+      register: z.union([z.string(), z.number()]).optional().describe('排列围绕的中心音高，例如中音区键盘用 "E4"、通透的铺底用 "C5"（默认用第一个和弦在 octave 上的位置）'),
+      rhythm: z.string().max(4096).optional().describe('style=rhythm 时用：每个和弦都从头重放的步进串，例如 "x--x--x-"'),
+      arpRate: z.number().min(0.25).optional().describe('琶音风格用：每个琶音音符占几步（默认 2＝八分音符）'),
       velocity: velocityArg,
       gate: z.number().min(0.1).max(1).optional(),
-      start: z.number().min(0).optional().describe('Start step (default 0)'),
+      start: z.number().min(0).optional().describe('起始步（默认 0）'),
       replace: replaceArg
     },
     annotations: A.edit
@@ -277,20 +277,20 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('add_bassline', {
-    title: 'Add bassline from chords',
-    description: 'Generate a bassline that follows the chords. Either a rhythm (step string of root hits, restarted each chord) or a line in degrees, restarted each chord: "degree:steps" tokens — R (root / slash bass), 3 5 7 (the chord\'s own), 8 (octave), b7, 9, -5 (fifth below), -8 (root an octave down); "-" rest, "~:2" tie; suffix ! accent, ? ghost, ~ slide into the next note (808 glide). e.g. trap 808 "R:6 R:2~ 8:2 -:2 5:4", house "-:2 R:2 -:2 R:2 -:2 8:2 -:2 R:2", boom bap "R:3 R:3 -:2 5:2 -:2 b7:4". Roots stay in one register. Accepts roman numerals like add_chords.',
+    title: '按和弦写贝斯',
+    description: '按和弦生成贝斯声部。可以给一个节奏（根音敲击的步进串，每个和弦重放一次），也可以给一串音级记号（每个和弦重放一次）：记号是 "音级:步数"——R（根音／斜杠贝斯）、3 5 7（和弦本身的音）、8（八度）、b7、9、-5（下方五度）、-8（低八度根音）；"-" 休止，"~:2" 延音；后缀 ! 重音、? 弱击、~ 滑进下一个音（808 的滑音）。例如 trap 808 "R:6 R:2~ 8:2 -:2 5:4"，house "-:2 R:2 -:2 R:2 -:2 8:2 -:2 R:2"，boom bap "R:3 R:3 -:2 5:2 -:2 b7:4"。根音会保持在同一个音区。和 add_chords 一样也接受级数记号。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
       chords: z.array(z.string()).min(1).max(256),
-      stepsPerChord: z.number().min(1).max(1024).optional().describe('Default 16'),
-      octave: z.number().int().min(0).max(6).optional().describe('Default 2 (808s often sound best around C1–C2)'),
-      rhythm: z.string().max(4096).optional().describe('Root-note rhythm (step string), default "x-------x-------"'),
-      line: z.string().max(4096).optional().describe('Degree line instead of rhythm, e.g. "R:3 R:1 -:2 5:2 R:2~ 8:4 b7:2" (see description)'),
+      stepsPerChord: z.number().min(1).max(1024).optional().describe('默认 16'),
+      octave: z.number().int().min(0).max(6).optional().describe('默认 2（808 通常在 C1–C2 最好听）'),
+      rhythm: z.string().max(4096).optional().describe('根音的节奏（步进串），默认 "x-------x-------"'),
+      line: z.string().max(4096).optional().describe('用音级串代替节奏，例如 "R:3 R:1 -:2 5:2 R:2~ 8:4 b7:2"（写法见说明）'),
       gate: z.number().min(0.1).max(1).optional(),
       velocity: velocityArg,
-      start: z.number().min(0).optional().describe('Start step (default 0)'),
+      start: z.number().min(0).optional().describe('起始步（默认 0）'),
       replace: replaceArg
     },
     annotations: A.edit
@@ -317,19 +317,19 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('add_roll', {
-    title: 'Add roll / stutter',
-    description: 'Add a fast repeated-note roll (trap hi-hat rolls, snare build-ups, stutters) with a velocity ramp. Adds to existing notes.',
+    title: '加连击／碎拍',
+    description: '加一串快速的重复音符（trap 踩镲连击、军鼓推进、碎拍），力度可以做渐变。是叠加在已有音符之上的。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
-      start: z.number().min(0).describe('Start step'),
-      length: z.number().positive().max(2048).describe('Length in steps'),
-      rate: z.enum(Object.keys(RATE_TICKS)).optional().describe('Note spacing: 1/32 (default), 1/24 (triplet 16ths), 1/48, 1/64, 1/16, 1/12...'),
-      note: z.union([z.string(), z.number()]).optional().describe('Default: the channel step note'),
-      velocityFrom: z.number().min(0).max(1).optional().describe('Default 0.45'),
-      velocityTo: z.number().min(0).max(1).optional().describe('Default 0.9'),
-      pitchRamp: z.number().int().min(-24).max(24).optional().describe('Semitones to glide over the roll (e.g. 12 for a rising snare roll)')
+      start: z.number().min(0).describe('起始步'),
+      length: z.number().positive().max(2048).describe('长度，单位步'),
+      rate: z.enum(Object.keys(RATE_TICKS)).optional().describe('音符间隔：1/32（默认）、1/24（十六分三连音）、1/48、1/64、1/16、1/12…'),
+      note: z.union([z.string(), z.number()]).optional().describe('默认用该通道的步进音符'),
+      velocityFrom: z.number().min(0).max(1).optional().describe('默认 0.45'),
+      velocityTo: z.number().min(0).max(1).optional().describe('默认 0.9'),
+      pitchRamp: z.number().int().min(-24).max(24).optional().describe('整段连击里滑多少个半音（例如 12 就是军鼓渐强上行）')
     },
     annotations: A.edit
   }, async (a) => {
@@ -351,17 +351,17 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('copy_notes', {
-    title: 'Copy notes',
-    description: "Copy a channel's notes from one pattern to another pattern and/or channel (optionally transposed or shifted) — e.g. double a melody on a second synth, or reuse a bassline in a new section.",
+    title: '复制音符',
+    description: '把一个通道在某个片段里的音符复制到另一个片段和／或另一个通道（可以顺便移调或平移）——比如把旋律在第二个合成器上叠一遍，或者在新段落里复用一段贝斯。',
     inputSchema: {
       projectId: projectIdArg,
       fromPattern: z.string(),
       fromChannel: z.string(),
-      toPattern: z.string().optional().describe('Default: same pattern'),
-      toChannel: z.string().optional().describe('Default: same channel'),
+      toPattern: z.string().optional().describe('默认：同一个片段'),
+      toChannel: z.string().optional().describe('默认：同一个通道'),
       transpose: z.number().int().min(-48).max(48).optional(),
       offsetSteps: z.number().optional(),
-      replace: z.boolean().optional().describe('Clear the destination first (default false)')
+      replace: z.boolean().optional().describe('先清空目标（默认不清）')
     },
     annotations: A.edit
   }, async (a) => {
@@ -385,8 +385,8 @@ export function registerNoteTools({ tool, backend, load }) {
 
   // ---------------------------------------------------------------- editing notes
   tool('update_notes', {
-    title: 'Update notes',
-    description: 'Edit individual notes by id (from get_pattern): change pitch, position, length, velocity or pan.',
+    title: '修改音符',
+    description: '按 id 改单个音符（id 来自 get_pattern）：改音高、位置、长度、力度或声像。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
@@ -422,15 +422,15 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('delete_notes', {
-    title: 'Delete notes',
-    description: 'Delete notes of a channel in a pattern by id, and/or by a step range and/or pitch.',
+    title: '删除音符',
+    description: '按 id 删除片段里某通道的音符，也可以按步范围和／或音高删。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),
       channel: z.string(),
       ids: z.array(z.string()).optional(),
       fromStep: z.number().min(0).optional(),
-      toStep: z.number().min(0).optional().describe('Exclusive end step'),
+      toStep: z.number().min(0).optional().describe('结束步（不含该步本身）'),
       note: z.union([z.string(), z.number()]).optional()
     },
     annotations: A.destructive
@@ -452,9 +452,9 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('clear_notes', {
-    title: 'Clear notes',
-    description: 'Remove all notes of one channel (or every channel) from a pattern.',
-    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('Omit to clear the whole pattern') },
+    title: '清空音符',
+    description: '清掉片段里某一个通道（或所有通道）的全部音符。',
+    inputSchema: { projectId: projectIdArg, pattern: z.string(), channel: z.string().optional().describe('不写就清空整个片段') },
     annotations: A.destructive
   }, async ({ projectId, pattern, channel }) => {
     const p = await load(projectId);
@@ -466,8 +466,8 @@ export function registerNoteTools({ tool, backend, load }) {
   });
 
   tool('transform_notes', {
-    title: 'Transform notes',
-    description: 'Piano-roll tools on a channel in a pattern: transpose (amount = semitones, required), shift (amount = steps, negative = earlier; wraps around the pattern), quantize (amount = grid in steps, default 1), humanize (amount 0..1), legato, velocity (set all to amount: 0..1 or MIDI 2..127, required), randomize_velocity (amount 0..1 spread), double (makes the WHOLE pattern twice as long by repeating every channel, so nothing falls silent), reverse, stretch (amount = time factor, e.g. 2 = half speed, 0.5 = double speed; grows the pattern if needed, other channels unchanged), strum (amount = steps between chord notes).',
+    title: '变换音符',
+    description: '对片段里某个通道做钢琴卷帘式的批量处理：transpose 移调（amount＝半音数，必填）、shift 平移（amount＝步数，负数往前；会绕回片段内）、quantize 量化（amount＝网格步数，默认 1）、humanize 人性化（amount 0..1）、legato 连奏、velocity 统一力度（全部设为 amount：0..1 或 MIDI 2..127，必填）、randomize_velocity 随机力度（amount＝0..1 的离散程度）、double 加倍（把整个片段变成两倍长——每个通道都重复一遍，所以不会突然静音）、reverse 倒转、stretch 伸缩（amount＝时间倍率，例如 2＝慢一半，0.5＝快一倍；需要时会把片段拉长，其它通道不变）、strum 琶开（amount＝和弦各音之间隔几步）。',
     inputSchema: {
       projectId: projectIdArg,
       pattern: z.string(),

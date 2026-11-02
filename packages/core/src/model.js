@@ -16,7 +16,7 @@ export const MAX_NUDGE_MS = 50;
 export function createChannel(opts = {}) {
   const kind = opts.kind || opts.instrument?.kind || 'kick';
   const def = INSTRUMENTS[kind];
-  if (!def) throw new Error(`Unknown instrument "${kind}"`);
+  if (!def) throw new Error(`不认识的乐器「${kind}」`);
   const plugin = opts.instrument?.plugin ?? opts.plugin ?? null;
   const instrument = opts.instrument?.params
     ? makeInstrument(kind, opts.instrument.preset, opts.instrument.params, { plugin })
@@ -46,7 +46,7 @@ export function createChannel(opts = {}) {
 export function createPattern(opts = {}) {
   return {
     id: opts.id || uid('pat'),
-    name: String(opts.name || 'Pattern').slice(0, 64),
+    name: String(opts.name || '片段').slice(0, 64),
     color: opts.color || COLORS[Math.floor(Math.random() * COLORS.length)],
     // absolute cap here (32 beats × 64 bars); ops clamp to 64 bars of the project's own time signature
     length: Math.max(STEP, Math.round(num(opts.length, PPQ * 4, STEP, PPQ * 32 * 64))),
@@ -55,13 +55,13 @@ export function createPattern(opts = {}) {
 }
 
 export function createTrack(i, opts = {}) {
-  return { id: opts.id || uid('trk'), name: opts.name || `Track ${i + 1}`, color: opts.color || null, mute: !!opts.mute };
+  return { id: opts.id || uid('trk'), name: opts.name || `轨道 ${i + 1}`, color: opts.color || null, mute: !!opts.mute };
 }
 
 export function createMixerInsert(i, opts = {}) {
   return {
     id: opts.id || uid('mx'),
-    name: opts.name || (i === 0 ? 'Master' : `Insert ${i}`),
+    name: opts.name || (i === 0 ? '主输出' : `通道条 ${i}`),
     color: opts.color || null,
     // the master fader sits after the master limiter: at 0 dB its ceiling is the real output ceiling
     volume: num(opts.volume, i === 0 ? 1 : 0.8, 0, 1.25),
@@ -77,7 +77,7 @@ export function createMixerInsert(i, opts = {}) {
 }
 
 export function createClip(opts) {
-  if (!['pattern', 'audio', 'automation'].includes(opts.kind)) throw new Error(`Invalid clip kind "${opts.kind}"`);
+  if (!['pattern', 'audio', 'automation'].includes(opts.kind)) throw new Error(`片段块类型不对：「${opts.kind}」`);
   const clip = {
     id: opts.id || uid('clip'),
     kind: opts.kind,
@@ -109,12 +109,12 @@ export function audioClipFields(o = {}, base = { gain: 1, fadeIn: 0, fadeOut: 0,
 
 export const MAX_MARKERS = 256;
 
-/** A named position in the song (section start such as "Hook"), shown above the playlist. */
+/** A named position in the song (section start such as "副歌"), shown above the playlist. */
 export function createMarker(opts = {}) {
   return {
     id: opts.id || uid('mk'),
     tick: Math.max(0, Math.round(num(opts.tick, 0))),
-    name: String(opts.name || 'Marker').slice(0, 64)
+    name: String(opts.name || '标记').slice(0, 64)
   };
 }
 
@@ -167,20 +167,137 @@ export function createEmptyProject(opts = {}) {
 export function createDefaultProject(opts = {}) {
   const p = createEmptyProject(opts);
   const chans = [
-    createChannel({ name: 'Kick', kind: 'kick', mixerTrack: 1 }),
-    createChannel({ name: 'Clap', kind: 'clap', mixerTrack: 2 }),
-    createChannel({ name: 'Hat', kind: 'hat', mixerTrack: 3, chokeGroup: 1 }),
-    createChannel({ name: 'Snare', kind: 'snare', mixerTrack: 4 })
+    createChannel({ name: '底鼓', kind: 'kick', mixerTrack: 1 }),
+    createChannel({ name: '拍手', kind: 'clap', mixerTrack: 2 }),
+    createChannel({ name: '踩镲', kind: 'hat', mixerTrack: 3, chokeGroup: 1 }),
+    createChannel({ name: '军鼓', kind: 'snare', mixerTrack: 4 })
   ];
   p.channels = chans;
   chans.forEach((c, i) => { p.mixer[i + 1].name = c.name; });
-  p.patterns = [createPattern({ name: 'Pattern 1', color: COLORS[6] })];
+  p.patterns = [createPattern({ name: '片段 1', color: COLORS[6] })];
   return p;
 }
 
 /** Fill in defaults / repair a project loaded from disk, an import or an undo snapshot. */
+
+/** 旧存档里的英文默认名改说中文（Track 1 / Pattern 1 / Insert 2 / Master）。 */
+const LEGACY_NAME_RULES = [
+  [/^Track (\d+)$/, (m) => `轨道 ${m[1]}`],
+  [/^Pattern (\d+)$/, (m) => `片段 ${m[1]}`],
+  [/^Insert (\d+)$/, (m) => `通道条 ${m[1]}`],
+  [/^Master$/, () => '主输出']
+];
+
+
+/** 旧存档里常见的英文通道名（按整名精确匹配，避免误伤用户自取的名字）。 */
+const LEGACY_NAME_WORDS = {
+  'Acid': '酸性',
+  'Acid Line': '酸性旋律线',
+  'Alap': '阿拉普（散板）',
+  'Arp': '琶音',
+  'Bansuri': '班苏里笛',
+  'Bass': '贝斯',
+  'Beat': '节奏',
+  'Bell': '铃音',
+  'Bongo': '邦戈鼓',
+  'Brass': '铜管',
+  'Cello': '大提琴',
+  'Chords': '和弦',
+  'Chorus': '副歌',
+  'Chudaiko': '中太鼓',
+  'Clap': '拍手',
+  'Conga': '康加鼓',
+  'Crash': '吊镲',
+  'Delay': '延迟',
+  'Dembow': 'Dembow 节奏',
+  'Dizi': '笛子',
+  'Drop': '高潮',
+  'Drums': '鼓组',
+  'Erhu': '二胡',
+  'Flute': '笛',
+  'FX': '音效',
+  'Gong': '锣',
+  'Grand': '三角钢琴',
+  'Grand Piano': '三角钢琴',
+  'Groove': '律动',
+  'Guitar': '吉他',
+  'Guzheng': '古筝',
+  'Hall': '大厅',
+  'Harmonium': '风琴',
+  'Hat': '踩镲',
+  'Hi-Hat': '踩镲',
+  'Hook': '副歌',
+  'Hum': '哼鸣',
+  'Intro': '前奏',
+  'Keys': '键盘',
+  'Kick': '底鼓',
+  'Koto': '日本筝',
+  'Lead': '主音',
+  'Loop': '循环',
+  'Melody': '旋律',
+  'Odaiko': '大太鼓',
+  'Open Hat': '开镲',
+  'Organ': '风琴',
+  'Pad': '铺底',
+  'Perc': '打击乐',
+  'Piano': '钢琴',
+  'Pipa': '琵琶',
+  'Pluck': '拨奏',
+  'Reese': '里斯贝斯',
+  'Reverb': '混响',
+  'Rhodes': '电钢琴',
+  'Ride': '叮叮镲',
+  'Rim': '边击',
+  'Room': '房间',
+  'Scratch': '搓碟',
+  'Shaker': '沙锤',
+  'Shakuhachi': '尺八',
+  'Shime': '缔太鼓',
+  'Sitar': '西塔琴',
+  'Snare': '军鼓',
+  'Staccato': '断奏',
+  'Strings': '弦乐',
+  'Sub': '低音',
+  'Suona': '唢呐',
+  'Swell': '渐强',
+  'Tabla': '塔布拉',
+  'Taiko': '太鼓',
+  'Tam-tam': '大锣',
+  'Tanpura': '坦布拉',
+  'Theka': '塔拉循环',
+  'Theme': '主题',
+  'Tom': '嗵鼓',
+  'Verse': '主歌',
+  'Vox': '人声'
+};
+/** 混音台通道条是否还是自动生成的默认名（Insert 7 / 通道条 7）——决定能不能用通道名覆盖它。 */
+export const isDefaultInsertName = (name) => typeof name === 'string' && /^(Insert|通道条) \d+$/.test(name);
+
+export function zhLegacyName(name) {
+  if (typeof name !== 'string') return name;
+  for (const [re, f] of LEGACY_NAME_RULES) {
+    const m = re.exec(name);
+    if (m) return f(m);
+  }
+  return Object.hasOwn(LEGACY_NAME_WORDS, name) ? LEGACY_NAME_WORDS[name] : name;
+}
+
+/** 名字必须唯一（工具和界面都靠名字找东西）：撞名就补序号。 */
+function dedupeNames(list) {
+  const seen = new Set();
+  for (const x of list) {
+    if (!x || typeof x.name !== 'string') continue;
+    if (!seen.has(x.name.toLowerCase())) { seen.add(x.name.toLowerCase()); continue; }
+    const base = x.name.replace(/ \d+$/, '');
+    let i = 2;
+    while (seen.has(`${base} ${i}`.toLowerCase())) i++;
+    x.name = `${base} ${i}`;
+    seen.add(x.name.toLowerCase());
+  }
+}
+
 export function normalizeProject(raw) {
-  if (!raw || typeof raw !== 'object') throw new Error('Project must be an object');
+  if (!raw || typeof raw !== 'object') throw new Error('工程必须是一个对象');
   const base = createEmptyProject({ id: typeof raw.id === 'string' ? raw.id : undefined, name: typeof raw.name === 'string' ? raw.name : undefined, bpm: raw.bpm, inserts: 0, tracks: 0 });
   const p = { ...base, ...raw };
   p.format = PROJECT_FORMAT;
@@ -218,6 +335,9 @@ export function normalizeProject(raw) {
         spatial: i === 0 ? normalizeInsertSpatial(null) : normalizeInsertSpatial(m?.spatial, num(m?.pan, 0, -1, 1))
       };
     });
+  // 旧存档的英文默认名统一改成中文（幂等：已是中文就不会再匹配）
+  for (const m of p.mixer) m.name = zhLegacyName(m.name);
+  dedupeNames(p.mixer);
   while (p.mixer.length < 2) p.mixer.push(createMixerInsert(p.mixer.length));
   repairRouting(p.mixer);
 
@@ -235,6 +355,8 @@ export function normalizeProject(raw) {
     seenChannels.add(ch.id);
     return ch;
   });
+  for (const c of p.channels) c.name = zhLegacyName(c.name);
+  dedupeNames(p.channels);
   const channelIds = new Set(p.channels.map((c) => c.id));
   for (const m of p.mixer) {
     for (const fx of m.effects) {
@@ -251,15 +373,17 @@ export function normalizeProject(raw) {
     for (const [cid, list] of Object.entries(obj(pt.notes) ? pt.notes : {})) {
       if (channelIds.has(cid) && Array.isArray(list)) notes[cid] = list.filter(obj).map(sanitizeNote);
     }
-    return { ...fresh, notes };
+    return { ...fresh, notes, name: zhLegacyName(fresh.name) };
   });
-  if (!p.patterns.length) p.patterns.push(createPattern({ name: 'Pattern 1' }));
+  if (!p.patterns.length) p.patterns.push(createPattern({ name: '片段 1' }));
+  dedupeNames(p.patterns);
 
   const tracks = (Array.isArray(raw.playlist?.tracks) ? raw.playlist.tracks : []).filter(obj).slice(0, MAX_TRACKS);
   p.playlist = {
     tracks: tracks.length
       ? tracks.map((t, i) => {
         const tr = createTrack(i, { id: typeof t.id === 'string' ? t.id : undefined, name: typeof t.name === 'string' ? t.name.slice(0, 64) : undefined, color: typeof t.color === 'string' ? t.color.slice(0, 16) : null, mute: t.mute });
+        tr.name = zhLegacyName(tr.name);
         return tr;
       })
       : Array.from({ length: DEFAULT_TRACK_COUNT }, (_, i) => createTrack(i)),
@@ -267,6 +391,7 @@ export function normalizeProject(raw) {
       try { return [createClip(c)]; } catch { return []; }
     })
   };
+  dedupeNames(p.playlist.tracks);
   p.automations = (Array.isArray(raw.automations) ? raw.automations : []).filter(obj).map((a) => createAutomation(a))
     .filter((a) => validAutomationTarget(p, a.target));
   p.markers = (Array.isArray(raw.markers) ? raw.markers : []).filter(obj).slice(0, MAX_MARKERS).map((m) => createMarker({
@@ -359,20 +484,26 @@ export function sanitizeNote(nt) {
 
 /** Resolve a reference: exact id, then name (case-insensitive), then a 0-based index. */
 function lookup(list, ref, what) {
-  if (ref === undefined || ref === null || ref === '') throw new Error(`Missing ${what}`);
+  if (ref === undefined || ref === null || ref === '') throw new Error(`缺少${what}`);
   const s = String(ref).trim();
+  const byName = (want) => list.find((x) => x.name?.toLowerCase() === want.toLowerCase());
+  // 旧版英文名（Kick / Strings / Pattern 1 …）也认：老三样写法与现名逐一对照
   const found = list.find((x) => x.id === s)
-    || list.find((x) => x.name?.toLowerCase() === s.toLowerCase())
+    || byName(s)
+    || byName(zhLegacyName(s))
     || (/^\d+$/.test(s) ? list[Number(s)] : undefined);
-  if (!found) throw new Error(`${what} "${ref}" not found. Available: ${list.map((x) => `${x.name} (${x.id})`).join(', ') || 'none'}`);
+  if (!found) {
+    const avail = list.map((x) => `${x.name} (${x.id})`).join('、') || '无';
+    throw new Error(`找不到${what}「${ref}」。现有：${avail}`);
+  }
   return found;
 }
 
 /** Find a channel by id, exact name (case-insensitive) or 0-based index. */
-export function findChannel(project, ref) { return lookup(project.channels, ref, 'Channel'); }
+export function findChannel(project, ref) { return lookup(project.channels, ref, '通道'); }
 /** Find a pattern by id, exact name or 0-based index. */
-export function findPattern(project, ref) { return lookup(project.patterns, ref, 'Pattern'); }
-export function findAutomation(project, ref) { return lookup(project.automations, ref, 'Automation'); }
+export function findPattern(project, ref) { return lookup(project.patterns, ref, '片段'); }
+export function findAutomation(project, ref) { return lookup(project.automations, ref, '自动化'); }
 
 export function getPattern(project, id) { return project.patterns.find((p) => p.id === id) || null; }
 export function getChannel(project, id) { return project.channels.find((c) => c.id === id) || null; }

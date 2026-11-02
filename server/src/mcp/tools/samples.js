@@ -47,11 +47,11 @@ function resolveFolder(folders, ref) {
 
 export function registerSampleTools({ tool, backend, load }) {
   tool('list_samples', {
-    title: 'List samples',
-    description: "The user's uploaded audio samples, grouped by folder, with key facts: duration, sample rate, bit depth, bitrate, channels, codec, and analysis (what it sounds like, pitch, tempo, key, loudness). Search and/or pick one folder. Use get_sample_info for full details.",
+    title: '列出采样',
+    description: '列出用户上传的音频采样，按文件夹归好，并给出关键数据：时长、采样率、位深、码率、声道数、编码，以及分析结果（听感、音高、速度、调、响度）。可以按关键词搜索和／或只看某一个文件夹。要看完整细节用 get_sample_info。',
     inputSchema: {
-      query: z.string().max(200).optional().describe('Search words, all of which must match the name, folder, tags or analysis (e.g. "kick", "vocal 140 bpm", "dark pad A minor")'),
-      folder: z.string().max(400).optional().describe('Only this folder (name or id); "unfiled" = samples not in any folder')
+      query: z.string().max(200).optional().describe('搜索词，全部都要命中名字、文件夹、标签或分析结果（例如「底鼓」「人声 140 bpm」「暗色铺底 A 小调」）'),
+      folder: z.string().max(400).optional().describe('只看这个文件夹（名字或 id）；写 "unfiled" 表示还没归档的采样')
     },
     annotations: A.readOnly
   }, async ({ query, folder }) => {
@@ -78,8 +78,8 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('get_sample_info', {
-    title: 'Sample metadata & analysis',
-    description: 'Full technical metadata of an uploaded sample (folder, format/container, codec, lossless, sample rate, bits per sample, channels, bitrate, duration, size, embedded tags such as title/artist/bpm/key) and its audio analysis (LUFS, peak, RMS, crest, clipping, silence, stereo width, spectral balance, onsets, tempo, key, pitch, one-shot vs loop, character).',
+    title: '采样信息与分析',
+    description: '一个上传采样的完整技术信息（文件夹、封装格式、编码、是否无损、采样率、位深、声道数、码率、时长、大小，以及标题／作者／速度／调等内嵌标签），以及它的音频分析结果（LUFS、峰值、RMS、波峰因数、是否削波、静音段、立体声宽度、频谱平衡、起音点、速度、调、音高、是一次性音色还是循环、音色特征）。',
     inputSchema: { sampleId: z.string() },
     annotations: A.readOnly
   }, async ({ sampleId }) => {
@@ -90,8 +90,8 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('analyze_sample', {
-    title: 'Analyse sample',
-    description: "(Re)analyse a sample in the user's browser (needed for formats the server can't decode, e.g. MP3/M4A/OGG, or to refresh). Returns the analysis.",
+    title: '分析采样',
+    description: '在用户的浏览器里（重新）分析一个采样（服务端解不了的格式如 MP3/M4A/OGG 必须这么做，也可以用来刷新结果）。返回分析结果。',
     inputSchema: { sampleId: z.string() },
     annotations: A.edit
   }, async ({ sampleId }) => {
@@ -103,9 +103,9 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('rename_sample', {
-    title: 'Rename sample',
-    description: 'Rename an uploaded sample.',
-    inputSchema: { sampleId: z.string(), name: z.string().min(1).max(800).describe('≤ 80 characters') },
+    title: '重命名采样',
+    description: '给上传的采样改名。',
+    inputSchema: { sampleId: z.string(), name: z.string().min(1).max(800).describe('不超过 80 个字符') },
     annotations: A.edit
   }, async ({ sampleId, name }) => {
     const s = await backend.updateSample(sampleId, { name });
@@ -113,12 +113,12 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('sample_folders', {
-    title: 'Sample folders',
-    description: 'List, create, rename or delete the folders that organise the user\'s samples (each sample is in one folder, or Unfiled). Deleting a folder keeps its samples: they become unfiled. Use move_samples to file samples.',
+    title: '采样文件夹',
+    description: '列出、新建、重命名或删除用来整理采样的文件夹（每个采样只在一个文件夹里，或者处于「未归档」）。删掉文件夹不会删里面的采样——它们会变成未归档。要把采样归档请用 move_samples。',
     inputSchema: {
-      action: z.enum(['list', 'create', 'rename', 'delete']).optional().describe('Default list'),
-      folder: z.string().max(400).optional().describe('create: the new folder\'s name (≤ 40 characters, not "Unfiled"); rename/delete: the folder (name or id)'),
-      newName: z.string().max(400).optional().describe('rename: the new name (≤ 40 characters)')
+      action: z.enum(['list', 'create', 'rename', 'delete']).optional().describe('默认 list'),
+      folder: z.string().max(400).optional().describe('create：新文件夹的名字（不超过 40 个字符，不能叫「未归档」）；rename/delete：目标文件夹（名字或 id）'),
+      newName: z.string().max(400).optional().describe('rename：新名字（不超过 40 个字符）')
     },
     annotations: A.edit
   }, async ({ action = 'list', folder, newName }) => {
@@ -144,11 +144,11 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('move_samples', {
-    title: 'Move samples to a folder',
-    description: 'File samples into a folder (by name or id; a folder with a new name is created). "unfiled" takes them out of their folder. Each sample is in one folder at a time.',
+    title: '把采样移到文件夹',
+    description: '把采样归档到某个文件夹（按名字或 id；给一个新名字就会新建文件夹）。写 "unfiled" 会把它们从文件夹里取出来。一个采样一次只能在一个文件夹里。',
     inputSchema: {
       sampleIds: z.array(z.string()).min(1).max(500),
-      folder: z.string().min(1).max(400).describe('Folder name or id (≤ 40 characters), or "unfiled"')
+      folder: z.string().min(1).max(400).describe('文件夹名字或 id（不超过 40 个字符），或者写 "unfiled"')
     },
     annotations: A.edit
   }, async ({ sampleIds, folder }) => {
@@ -169,11 +169,11 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('delete_sample', {
-    title: 'Delete samples',
-    description: 'Permanently delete uploaded samples. Only when the user explicitly asks. Sampler channels and audio clips that use them go silent — the reply says which projects were affected.',
+    title: '删除采样',
+    description: '永久删除上传的采样。只有用户明确要求时才这么做。用到它的采样器通道与音频块会变成静音——回复里会说哪些工程受到了影响。',
     inputSchema: {
       sampleId: z.string().optional(),
-      sampleIds: z.array(z.string()).min(1).max(500).optional().describe('Several at once (instead of sampleId)')
+      sampleIds: z.array(z.string()).min(1).max(500).optional().describe('一次删多个（代替 sampleId）')
     },
     annotations: A.destructive
   }, async ({ sampleId, sampleIds }) => {
@@ -188,29 +188,29 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('edit_sample', {
-    title: 'Edit sample (wave editor)',
-    description: `Edit an uploaded sample the way the studio's wave editor does (it runs in the user's browser) and save the result as a NEW sample (default, the original stays) or over the original. Operations run in order; start/end are seconds (omit both for the whole sample): ${Object.entries(EDIT_OPS).map(([k, v]) => `${k}: ${v}`).join('; ')}. pitch_correct is auto-tune for a solo voice or instrument: key + scale (default C chromatic), amount 0-1 (1), speed ms (50; 0 = robotic), flatten 0-1 (0). saveAs "replace" changes every project that uses the sample: only when the user asks for it.`,
+    title: '编辑采样（波形编辑器）',
+    description: `像工作室里的波形编辑器那样编辑一个上传的采样（在用户的浏览器里跑），结果存成一个新采样（默认，原件保留）或覆盖原件。操作按顺序执行；start/end 单位是秒（两个都不写就是整段）：${Object.entries(EDIT_OPS).map(([k, v]) => `${k}: ${v}`).join('；')}。pitch_correct 是给独唱人声或独奏乐器做自动修音：key + scale（默认 C chromatic）、amount 0-1（1）、speed 毫秒（50；0＝机械感）、flatten 0-1（0）。saveAs 用 "replace" 会改动所有用到该采样的工程：只有用户要求时才这么做。`,
     inputSchema: {
       sampleId: z.string(),
       ops: z.array(z.object({
         op: z.enum(Object.keys(EDIT_OPS)),
-        start: z.number().min(0).optional().describe('Seconds'),
-        end: z.number().min(0).optional().describe('Seconds'),
-        db: z.number().min(-48).max(48).optional().describe('gain'),
-        peakDb: z.number().min(-60).max(0).optional().describe('normalize target'),
-        curve: z.enum(['linear', 'exp', 'log', 'scurve']).optional().describe('fade_in / fade_out'),
-        rate: z.number().min(0.25).max(4).optional().describe('speed / stretch'),
-        semitones: z.number().min(-24).max(24).optional().describe('pitch_shift'),
-        thresholdDb: z.number().min(-90).max(-10).optional().describe('trim_silence (relative to the peak)'),
-        key: z.string().max(3).optional().describe('pitch_correct: e.g. "A", "F#", "Bb"'),
-        scale: z.string().max(20).optional().describe('pitch_correct: chromatic, major, minor, dorian, … (see music_theory)'),
+        start: z.number().min(0).optional().describe('秒'),
+        end: z.number().min(0).optional().describe('秒'),
+        db: z.number().min(-48).max(48).optional().describe('gain 增益'),
+        peakDb: z.number().min(-60).max(0).optional().describe('normalize 归一化目标峰值'),
+        curve: z.enum(['linear', 'exp', 'log', 'scurve']).optional().describe('fade_in／fade_out 淡入淡出曲线'),
+        rate: z.number().min(0.25).max(4).optional().describe('speed／stretch 变速与伸缩'),
+        semitones: z.number().min(-24).max(24).optional().describe('pitch_shift 移调'),
+        thresholdDb: z.number().min(-90).max(-10).optional().describe('trim_silence 静音裁剪的阈值（相对峰值）'),
+        key: z.string().max(3).optional().describe('pitch_correct 音高修正：例如「A」「F#」「Bb」'),
+        scale: z.string().max(20).optional().describe('pitch_correct 音高修正用的音阶：chromatic、major、minor、dorian…（见 music_theory）'),
         amount: z.number().min(0).max(1).optional(),
-        speed: z.number().min(0).max(500).optional().describe('pitch_correct: ms to reach the target'),
+        speed: z.number().min(0).max(500).optional().describe('pitch_correct 音高修正：滑到目标音高要多少毫秒'),
         flatten: z.number().min(0).max(1).optional()
       })).min(1).max(20),
-      saveAs: z.enum(['new', 'replace']).optional().describe('new (default) or replace the original'),
-      name: z.string().min(1).max(800).optional().describe('Name of the new sample, ≤ 80 characters (default "<original> edit")'),
-      folder: z.string().max(400).optional().describe('Folder for the new sample: name or id, or "unfiled" (default: the original\'s folder)')
+      saveAs: z.enum(['new', 'replace']).optional().describe('new（默认，另存为新采样）或 replace（覆盖原件）'),
+      name: z.string().min(1).max(800).optional().describe('新采样的名字，不超过 80 个字符（默认「<原件> 编辑」）'),
+      folder: z.string().max(400).optional().describe('新采样放到哪个文件夹：名字或 id，或写 "unfiled"（默认用原件所在的文件夹）')
     },
     annotations: A.edit
   }, async ({ sampleId, ops, saveAs = 'new', name, folder }) => {
@@ -245,20 +245,20 @@ export function registerSampleTools({ tool, backend, load }) {
   });
 
   tool('add_audio_clip', {
-    title: 'Add audio clip',
-    description: 'Place an uploaded sample (loop, vocal, fx, full recording) directly in the playlist as an audio clip, with optional gain and fades. fit="repitch" plays a loop at the project tempo by changing its speed (and pitch, like a turntable — classic for boom bap / lo-fi); otherwise audio is not time-stretched, so match the project BPM to the loop (get_sample_info shows its tempo).',
+    title: '添加音频块',
+    description: '把上传的采样（循环、人声、音效、整段录音）直接作为音频块放进播放列表，可以顺带设增益与淡入淡出。fit="repitch" 会通过改变速度（音高也跟着变，像唱机变速——boom bap／lo-fi 的经典做法）让循环对齐工程速度；否则音频不做时间伸缩，所以要把工程 BPM 调成跟循环一致（get_sample_info 会给出它的速度）。',
     inputSchema: {
       projectId: projectIdArg,
       sampleId: z.string(),
       startBar: z.number().min(1),
       track: z.number().int().min(1).max(MAX_TRACKS).optional(),
-      bars: z.number().positive().optional().describe('Clip length in bars (default: sample length at the project tempo)'),
-      repeat: z.number().int().min(1).max(64).optional().describe('Consecutive copies (default 1)'),
-      gainDb: z.number().min(-60).max(12).optional().describe('Clip gain in dB (default 0)'),
-      fadeInSteps: z.number().min(0).optional().describe('Fade-in length in steps (16ths)'),
-      fadeOutSteps: z.number().min(0).optional().describe('Fade-out length in steps'),
-      fit: z.enum(['none', 'repitch']).optional().describe('repitch = speed the loop to the project tempo (needs a detected or given sampleBpm)'),
-      sampleBpm: z.number().min(40).max(300).optional().describe('Tempo of the loop when fit=repitch (default: detected)')
+      bars: z.number().positive().optional().describe('音频块长度，单位小节（默认：按工程速度换算的采样时长）'),
+      repeat: z.number().int().min(1).max(64).optional().describe('连着放几份（默认 1）'),
+      gainDb: z.number().min(-60).max(12).optional().describe('音频块增益，单位 dB（默认 0）'),
+      fadeInSteps: z.number().min(0).optional().describe('淡入长度，单位步（十六分音符）'),
+      fadeOutSteps: z.number().min(0).optional().describe('淡出长度，单位步'),
+      fit: z.enum(['none', 'repitch']).optional().describe('repitch＝把循环变速到工程速度（需要能测出或你给定 sampleBpm）'),
+      sampleBpm: z.number().min(40).max(300).optional().describe('fit=repitch 时循环本身的速度（默认用测出来的）')
     },
     annotations: A.edit
   }, async ({ projectId, sampleId, startBar, track, bars, repeat = 1, gainDb, fadeInSteps, fadeOutSteps, fit = 'none', sampleBpm }) => {

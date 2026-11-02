@@ -32,10 +32,10 @@ const pitchOf = (x) => median(trackPitch(x, SR).hz.filter(Boolean));
 const cents = (a, b) => 1200 * Math.log2(a / b);
 
 test('makeClip validates channels, lengths and sample rate', () => {
-  assert.throws(() => makeClip([], SR), /1 or 2 channels/);
-  assert.throws(() => makeClip([new Float32Array(3), new Float32Array(4)], SR), /same length/);
-  assert.throws(() => makeClip([new Float32Array(3)], 100), /sample rate/);
-  assert.throws(() => makeClip([new Float32Array(3), new Float32Array(3), new Float32Array(3)], SR), /1 or 2/);
+  assert.throws(() => makeClip([], SR), /1 或 2 个声道/);
+  assert.throws(() => makeClip([new Float32Array(3), new Float32Array(4)], SR), /长度必须一致/);
+  assert.throws(() => makeClip([new Float32Array(3)], 100), /采样率不对/);
+  assert.throws(() => makeClip([new Float32Array(3), new Float32Array(3), new Float32Array(3)], SR), /1 或 2 个声道/);
   assert.ok(makeClip([[0, 1]], SR).channels[0] instanceof Float32Array);
 });
 
@@ -107,7 +107,7 @@ test('resample, speed and stretch change length as asked', () => {
   const slow = stretchRange(c, 0, SR, 0.5);
   assert.ok(Math.abs(clipLength(slow) - 2 * SR) <= 1);
   assert.ok(Math.abs(cents(pitchOf(slow.channels[0]), 220)) < 5, 'stretch keeps the pitch');
-  assert.throws(() => speedRange(c, 0, SR, 10), /between 0.25 and 4/);
+  assert.throws(() => speedRange(c, 0, SR, 10), /0.25 到 4 之间/);
   assert.equal(timeStretch([new Float32Array(SR)], SR, 2)[0].length, SR / 2);
 });
 
@@ -146,8 +146,8 @@ test('scale snapping: C major, pentatonic, chromatic and errors', () => {
   assert.equal(major(65.6), 65); // F#- → F (nearer than G)
   assert.equal(scaleSnapper('A', 'minorPentatonic')(70.2), 69); // Bb → A
   assert.equal(scaleSnapper()(61.4), 61);
-  assert.throws(() => scaleSnapper('C', 'nope'), /Unknown scale/);
-  assert.throws(() => scaleSnapper('H', 'major'), /Invalid key/);
+  assert.throws(() => scaleSnapper('C', 'nope'), /不认识的音阶/);
+  assert.throws(() => scaleSnapper('H', 'major'), /调号不对/);
   const snapped = snapNotes([{ center: 61.4, target: 61.4 }, { center: 61.4, target: 67, locked: true }], 'C', 'major');
   assert.deepEqual(snapped.map((n) => n.target), [62, 67]);
 });
@@ -214,11 +214,11 @@ test('applyEdit runs named operations in seconds and rejects bad input', () => {
   assert.ok(Math.abs(peakDb(applyEdit(c, { op: 'normalize', peakDb: -3 }).clip) - -3) < 1e-3);
   assert.equal(applyEdit(c, { op: 'stereo' }).clip.channels.length, 2);
   assert.match(applyEdit(c, { op: 'pitch_correct', key: 'A', scale: 'minor' }).note, /1 notes? tuned to A minor/);
-  assert.throws(() => applyEdit(c, { op: 'gain', db: 99 }), /between -48 and 48/);
-  assert.throws(() => applyEdit(c, { op: 'pitch_shift', semitones: 30 }), /between -24 and 24/);
-  assert.throws(() => applyEdit(c, { op: 'trim', start: 0.8, end: 0.2 }), /outside the sample/);
-  assert.throws(() => applyEdit(c, { op: 'trim', start: 5 }), /outside the sample/);
-  assert.throws(() => applyEdit(c, { op: 'explode' }), /Unknown edit/);
+  assert.throws(() => applyEdit(c, { op: 'gain', db: 99 }), /-48 到 48 之间/);
+  assert.throws(() => applyEdit(c, { op: 'pitch_shift', semitones: 30 }), /-24 到 24 之间/);
+  assert.throws(() => applyEdit(c, { op: 'trim', start: 0.8, end: 0.2 }), /超出了采样范围/);
+  assert.throws(() => applyEdit(c, { op: 'trim', start: 5 }), /超出了采样范围/);
+  assert.throws(() => applyEdit(c, { op: 'explode' }), /不认识的编辑操作/);
   for (const op of Object.keys(EDIT_OPS)) assert.ok(applyEdit(c, { op, start: 0.1, end: 0.3, db: 1, rate: 1.5, semitones: 1 }).clip, op);
 });
 
@@ -281,11 +281,11 @@ test('auto-tune and pitch shift leave the audio outside what they change untouch
 
 test('edits that would empty the sample or pass 20 minutes are refused; odd scale names are unknown', () => {
   const c = clipOf(voice([{ hz: 220, dur: 0.5 }]));
-  assert.throws(() => applyEdit(c, { op: 'delete' }), /leave the sample empty/);
-  assert.throws(() => applyEdit(c, { op: 'trim', start: 0, end: 0.00001 }), /empty|outside/);
+  assert.throws(() => applyEdit(c, { op: 'delete' }), /采样就空了/);
+  assert.throws(() => applyEdit(c, { op: 'trim', start: 0, end: 0.00001 }), /采样就空了|超出了采样范围/);
   assert.equal(clipLength(speedRange(c, 100, 100, 2)), clipLength(c));
-  assert.throws(() => scaleSnapper('C', 'constructor'), /Unknown scale/);
-  assert.throws(() => scaleSnapper('C', '__proto__'), /Unknown scale/);
+  assert.throws(() => scaleSnapper('C', 'constructor'), /不认识的音阶/);
+  assert.throws(() => scaleSnapper('C', '__proto__'), /不认识的音阶/);
   const dc = removeDC(clipOf(new Float32Array(1000).fill(0.4)));
   assert.ok(Math.abs(dc.channels[0][0]) < 1e-6 && Math.abs(dc.channels[0][10]) < 0.01);
 });

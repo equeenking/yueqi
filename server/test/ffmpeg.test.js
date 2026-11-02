@@ -57,7 +57,7 @@ test('detection: disabled, missing and fake ffmpeg; formats know what they need'
   assert.equal((await off.status()).available, false);
   const offFormats = await off.formats();
   assert.deepEqual(offFormats.filter((f) => f.available).map((f) => f.id), ['wav']);
-  assert.match(offFormats.find((f) => f.id === 'mp3').reason, /Disabled/);
+  assert.match(offFormats.find((f) => f.id === 'mp3').reason, /已用 FFMPEG_PATH=off 关闭/);
 
   const missing = createFfmpeg({ path: path.join(tmp, 'nope', 'ffmpeg') });
   const st = await missing.status();
@@ -107,33 +107,33 @@ test('conversion arguments: file-only protocol, forced input format, sanitized m
 
   // a second conversion never overwrites the first
   assert.equal((await f.convert({ input, format: 'mp3' })).name, 'My_Song-2.mp3');
-  await assert.rejects(f.convert({ input, format: 'mp3', bitrate: 100 }), /bitrate must be one of/);
-  await assert.rejects(f.convert({ input, format: 'opus' }), /no encoder/);
-  await assert.rejects(f.convert({ input, format: 'wav' }), /no conversion needed/);
-  await assert.rejects(f.convert({ input, format: 'exe' }), /Unknown format/);
+  await assert.rejects(f.convert({ input, format: 'mp3', bitrate: 100 }), /码率只能是/);
+  await assert.rejects(f.convert({ input, format: 'opus' }), /没有 Opus 的编码器/);
+  await assert.rejects(f.convert({ input, format: 'wav' }), /不需要转换/);
+  await assert.rejects(f.convert({ input, format: 'exe' }), /不支持的格式/);
   await fs.writeFile(path.join(dir, 'fake.wav'), 'not a wav');
-  await assert.rejects(f.convert({ input: path.join(dir, 'fake.wav'), format: 'flac' }), /Only PCM\/float WAV/);
+  await assert.rejects(f.convert({ input: path.join(dir, 'fake.wav'), format: 'flac' }), /只有 PCM／浮点 WAV/);
   // a failing ffmpeg leaves no file behind
   await assert.rejects(f.convert({ input, format: 'flac', metadata: { title: 'FAIL' } }), /Invalid data/);
   assert.deepEqual((await fs.readdir(dir)).filter((x) => x.endsWith('.flac')), []);
   assert.deepEqual(cleanMetadata({ date: 2026, genre: '' }), { date: '2026' });
   // prototype keys are not formats
-  for (const format of ['__proto__', 'constructor', 'toString']) await assert.rejects(f.convert({ input, format }), /Unknown format/);
+  for (const format of ['__proto__', 'constructor', 'toString']) await assert.rejects(f.convert({ input, format }), /不支持的格式/);
   // only PCM/float WAVs: a compressed codec inside a RIFF file (here MP3, tag 0x55) never reaches ffmpeg's decoders
   const mp3InWav = wav24(0.05);
   mp3InWav.writeUInt16LE(0x55, 20);
   await fs.writeFile(path.join(dir, 'odd.wav'), mp3InWav);
-  await assert.rejects(f.convert({ input: path.join(dir, 'odd.wav'), format: 'flac' }), /Only PCM\/float WAV/);
+  await assert.rejects(f.convert({ input: path.join(dir, 'odd.wav'), format: 'flac' }), /只有 PCM／浮点 WAV/);
   // formats have channel limits: say so instead of failing inside ffmpeg (or folding a 5.1 mix to stereo)
   const six = wav24(0.05);
   six.writeUInt16LE(6, 22);
   await fs.writeFile(path.join(dir, 'surround.wav'), six);
-  await assert.rejects(f.convert({ input: path.join(dir, 'surround.wav'), format: 'mp3' }), (e) => e.status === 422 && /at most 2 channels; this render has 6/.test(e.message));
+  await assert.rejects(f.convert({ input: path.join(dir, 'surround.wav'), format: 'mp3' }), (e) => e.status === 422 && /最多 2 个声道，这个音频有 6 个/.test(e.message));
   // channels without speaker positions (an ADM/object render) only go to lossless formats
-  await assert.rejects(f.convert({ input: path.join(dir, 'surround.wav'), format: 'aac' }), (e) => e.status === 422 && /without speaker positions/.test(e.message));
+  await assert.rejects(f.convert({ input: path.join(dir, 'surround.wav'), format: 'aac' }), (e) => e.status === 422 && /没有声道位置/.test(e.message));
   six.writeUInt16LE(12, 22);
   await fs.writeFile(path.join(dir, 'atmos.wav'), six);
-  await assert.rejects(f.convert({ input: path.join(dir, 'atmos.wav'), format: 'flac' }), /at most 8 channels; this render has 12. Use WAV or AIFF/);
+  await assert.rejects(f.convert({ input: path.join(dir, 'atmos.wav'), format: 'flac' }), /最多 8 个声道，这个音频有 12 个/);
   // ffmpeg's failure reason is shown (422), without the server's folders
   await assert.rejects(f.convert({ input, format: 'flac', metadata: { title: 'FAIL' } }), (e) => e.status === 422 && !e.message.includes(dir));
 });
@@ -157,7 +157,7 @@ test('a hanging ffmpeg is killed after the timeout and runs are limited to maxJo
   const t0 = Date.now();
   const hung = f.convert({ input, format: 'mp3', metadata: { title: 'SLEEP' } });
   const queued = f.convert({ input, format: 'aac' }); // waits for the slot
-  await assert.rejects(hung, /longer than 1 s/);
+  await assert.rejects(hung, /超过 1 秒/);
   const ok = await queued;
   assert.ok(Date.now() - t0 >= 1000, 'the second run waited for the first');
   assert.equal(ok.name, 'x.m4a');
@@ -256,14 +256,14 @@ test('MCP: list_export_formats and export_audio (browser render, server conversi
     const call = callTool(client);
     await call('create_project', { name: 'Export Me', template: 'empty' });
     const formats = await call('list_export_formats');
-    assert.match(formats, /ffmpeg 9\.9-fake is available/);
-    assert.match(formats, /- mp3 — MP3: .*bitrates 128\/160\/192\/256\/320 kbps \(default 320\)/);
-    assert.match(formats, /- opus — Opus \[unavailable\]/);
+    assert.match(formats, /服务器上的 ffmpeg 9\.9-fake 可用/);
+    assert.match(formats, /- mp3 — MP3: .*码率 128\/160\/192\/256\/320 kbps（默认 320）/);
+    assert.match(formats, /- opus — Opus \[不可用\]/);
 
     // fails fast, before any render, for formats or bitrates that can't be made
-    await assert.rejects(call('export_audio', { format: 'opus' }), /can't be exported here/);
-    await assert.rejects(call('export_audio', { format: 'flac', bitrate: 320 }), /no bitrate setting/);
-    await assert.rejects(call('export_audio', { format: 'mp3', bitrate: 99 }), /bitrate must be one of/);
+    await assert.rejects(call('export_audio', { format: 'opus' }), /在这里导不了/);
+    await assert.rejects(call('export_audio', { format: 'flac', bitrate: 320 }), /没有码率设置/);
+    await assert.rejects(call('export_audio', { format: 'mp3', bitrate: 99 }), /码率只能是/);
 
     const sock = openSocket(srv.base, user.cookie);
     assert.equal(await sock.opened, true);
@@ -279,7 +279,7 @@ test('MCP: list_export_formats and export_audio (browser render, server conversi
       await fetch(`${srv.base}/api/jobs/${msg.jobId}/result`, { method: 'POST', headers: { cookie: user.cookie }, body: fd });
     });
     const out = await call('export_audio', { format: 'mp3', bitrate: 256, artist: 'Claude & Pat' });
-    assert.match(out, /Exported Export_Me-[\w-]+\.mp3 \(MP3, 256 kbps, .*-14\.2 LUFS integrated/);
+    assert.match(out, /已导出 Export_Me-[\w-]+\.mp3（MP3、256 kbps.*整体响度 -14\.2 LUFS/);
     assert.equal(jobs[0].kind, 'render');
     assert.equal(jobs[0].bitDepth, 24); // lossy formats are encoded from a 24-bit render
     assert.equal(jobs[0].save, true);
@@ -288,7 +288,7 @@ test('MCP: list_export_formats and export_audio (browser render, server conversi
     assert.ok(!files.some((n) => /\.wav$/.test(n)), 'intermediate WAV removed'); // keepWav defaults to false
 
     const wavOut = await call('export_audio', { format: 'wav', bitDepth: 16 });
-    assert.match(wavOut, /16-bit WAV/);
+    assert.match(wavOut, /16 位 WAV/);
     assert.equal(jobs[1].bitDepth, 16);
     sock.ws.close();
     await client.close();

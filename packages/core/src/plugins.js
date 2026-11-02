@@ -30,7 +30,7 @@ const KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
 const FILE_RE = /^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9_./-]{0,120}$/;
 const AUDIO_FILE_RE = /\.(wav|mp3|ogg|flac)$/i;
 
-const fail = (msg) => { throw new Error(`plugin.json: ${msg}`); };
+const fail = (msg) => { throw new Error(`plugin.json：${msg}`); };
 const str = (v, max, what, required = false) => {
   if (v === undefined || v === null || v === '') {
     if (required) fail(`${what} is required`);
@@ -181,19 +181,19 @@ export function validateManifest(raw, files = null) {
 export function sanitizePluginValues(defs, values = {}, { strict = false, what = 'params' } = {}) {
   const out = {};
   if (values === null || typeof values !== 'object' || Array.isArray(values)) {
-    if (strict) throw new Error(`${what} must be an object`);
+    if (strict) throw new Error(`${what} 必须是一个对象`);
     return out;
   }
   for (const [k, v] of Object.entries(values)) {
     const d = defs.find((x) => x.key === k);
     if (!d) {
-      if (strict) throw new Error(`${what}: unknown parameter "${k}". Valid: ${defs.map((x) => x.key).join(', ') || 'none'}`);
+      if (strict) throw new Error(`${what}：不认识的参数「${k}」。合法参数：${defs.map((x) => x.key).join('、') || '无'}`);
       continue;
     }
     if (d.type === 'number') {
       const x = typeof v === 'number' ? v : parseFloat(v);
       if (!Number.isFinite(x) || (strict && (x < d.min || x > d.max))) {
-        if (strict) throw new Error(`${what}: "${k}" must be between ${d.min} and ${d.max}`);
+        if (strict) throw new Error(`${what}：「${k}」必须在 ${d.min} 到 ${d.max} 之间`);
         continue;
       }
       let y = Math.min(d.max, Math.max(d.min, x));
@@ -201,7 +201,7 @@ export function sanitizePluginValues(defs, values = {}, { strict = false, what =
       out[k] = Math.round(y * 1e9) / 1e9;
     } else if (d.type === 'select') {
       if (!d.options.includes(v)) {
-        if (strict) throw new Error(`${what}: "${k}" must be one of ${d.options.join(', ')}`);
+        if (strict) throw new Error(`${what}：「${k}」只能是 ${d.options.join('、')} 之一`);
         continue;
       }
       out[k] = v;
@@ -243,7 +243,7 @@ export const GENERATOR_MAX_NOTES = 4096;
  * [0, maxSteps).
  */
 export function cleanGeneratedNotes(raw, maxSteps) {
-  if (!Array.isArray(raw)) throw new Error('The generator must return a list of notes');
+  if (!Array.isArray(raw)) throw new Error('生成器必须返回一组音符');
   const out = [];
   for (const n of raw.slice(0, GENERATOR_MAX_NOTES * 2)) {
     if (!n || typeof n !== 'object') continue;

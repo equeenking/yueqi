@@ -64,11 +64,11 @@ export function createMcpServer(backend) {
   registerPrompts(ctx);
 
   server.registerResource('guide', 'greanteadawy://guide', {
-    title: 'GreanTeaDawy guide', description: 'Concepts, time units and notation used by the tools', mimeType: 'text/markdown'
+    title: '本工作室使用指南', description: '工具用到的概念、时间单位与记谱写法', mimeType: 'text/markdown'
   }, async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: GUIDE }] }));
 
   server.registerResource('active-project', 'greanteadawy://project/active', {
-    title: 'Active project', description: 'Summary of the project currently open', mimeType: 'text/plain'
+    title: '当前工程', description: '正在编辑的那个工程的概览', mimeType: 'text/plain'
   }, async (uri) => {
     const p = await load();
     return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: summarizeProject(p) }] };

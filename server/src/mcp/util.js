@@ -1,11 +1,11 @@
 // Shared helpers for MCP tool modules.
 import { z } from 'zod';
-import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS } from '@greanteadawy/core';
+import { STEP, ticksPerBar, isRomanNumeral, romanToChord, maxPatternLength, MAX_PATTERN_BARS, zhLegacyName } from '@greanteadawy/core';
 
 export { z };
 
-export const projectIdArg = z.string().optional().describe('Project id. Defaults to the active project (the one open in the browser).');
-export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().describe('Unit for start/length (default steps = 16th notes)');
+export const projectIdArg = z.string().optional().describe('工程 id。默认用当前工程（浏览器里打开的那个）。');
+export const unitArg = z.enum(['steps', 'beats', 'bars', 'ticks']).optional().describe('起点／长度用的单位（默认 steps＝十六分音符）');
 
 export const annotations = {
   readOnly: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -30,16 +30,21 @@ export function normVelocity(v, fallback = 0.8) {
 
 /** A name not used by any item in `list` yet ("Kick", "Kick 2", "Kick 3", …). */
 export function uniqueName(list, name) {
-  const taken = new Set(list.map((x) => String(x.name).toLowerCase()));
-  if (!taken.has(name.toLowerCase())) return name;
+  // 旧英文名在存档载入时会译成中文（Kick → 底鼓），所以对照时两种写法都算占用
+  const taken = new Set(list.flatMap((x) => [String(x.name).toLowerCase(), String(zhLegacyName(x.name)).toLowerCase()]));
+  // 新名字的旧英文写法也算：底鼓 已存在时再要 "Kick" 会撞名
+  const wanted = [name.toLowerCase(), String(zhLegacyName(name)).toLowerCase()];
+  if (!wanted.some((n) => taken.has(n))) return name;
   const base = name.replace(/\s+\d+$/, '');
   for (let i = 2; ; i++) if (!taken.has(`${base} ${i}`.toLowerCase())) return `${base} ${i}`;
 }
 
 /** Throw if another item (not `self`) already uses `name` (case-insensitive) — names are how tools find things. */
 export function assertNameFree(list, name, what, self = null) {
-  const clash = list.find((x) => x !== self && x.id !== self?.id && String(x.name).toLowerCase() === name.toLowerCase());
-  if (clash) throw new Error(`A ${what} named "${clash.name}" already exists — names must be unique so tools can find things`);
+  // 旧英文名与现名算同一个（Kick 与 底鼓 撞名）
+  const wanted = new Set([name.toLowerCase(), String(zhLegacyName(name)).toLowerCase()]);
+  const clash = list.find((x) => x !== self && x.id !== self?.id && wanted.has(String(x.name).toLowerCase()));
+  if (clash) throw new Error(`已有同名的${what}「${clash.name}」——名字必须唯一，工具才找得到它`);
 }
 
 export function pickTrack(p, refId) {
@@ -52,19 +57,19 @@ export function pickTrack(p, refId) {
 
 export function findEffect(p, insert, ref) {
   const m = p.mixer[insert];
-  if (!m) throw new Error(`Mixer insert ${insert} does not exist (0..${p.mixer.length - 1})`);
+  if (!m) throw new Error(`混音台通道条 ${insert} 不存在（0..${p.mixer.length - 1}）`);
   const byId = m.effects.find((e) => e.id === ref);
   if (byId) return byId;
   const byType = m.effects.filter((e) => e.type === ref);
   if (byType.length === 1) return byType[0];
-  throw new Error(`Effect "${ref}" not found on insert ${insert}. Effects: ${m.effects.map((e) => `${e.type} [${e.id}]`).join(', ') || 'none'}`);
+  throw new Error(`通道条 ${insert} 上没有效果器「${ref}」。现有：${m.effects.map((e) => `${e.type} [${e.id}]`).join('、') || '无'}`);
 }
 
 /** Throw unless `needed` ticks fit in a pattern — call it BEFORE generating notes, so huge requests cost nothing. */
 export function assertFitsPattern(p, pattern, needed) {
   if (!(needed <= maxPatternLength(p))) {
     const bars = Number.isFinite(needed) ? Math.ceil(needed / ticksPerBar(p)) : 'too many';
-    throw new Error(`That would make "${pattern.name}" ${bars} bars long; patterns can be at most ${MAX_PATTERN_BARS} bars. Use several patterns and arrange them in the playlist.`);
+    throw new Error(`这样「${pattern.name}」会变成 ${bars} 小节；片段最长 ${MAX_PATTERN_BARS} 小节。可以多建几个片段，再到播放列表里排。`);
   }
 }
 

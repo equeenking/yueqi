@@ -246,7 +246,7 @@ test('normalizeProject survives malformed input', () => {
   assert.deepEqual(p.timeSig, [4, 4]);
   assert.equal(new Set(p.channels.map((c) => c.id)).size, 2);
   assert.equal(p.automations.length, 0);
-  assert.throws(() => applyOps(p, [{ type: 'project/update', patch: { key: 'A minor' } }]), /Invalid key/);
+  assert.throws(() => applyOps(p, [{ type: 'project/update', patch: { key: 'A minor' } }]), /调号不对/);
 });
 
 test('diatonic chords and note names are spelled for the key', async () => {
@@ -272,7 +272,7 @@ test('notes/add: re-adding existing notes does not count against the per-channel
   p = applyOps(p, [{ type: 'notes/set', patternId: pat, channelId: ch, notes }]);
   p = applyOps(p, [{ type: 'notes/add', patternId: pat, channelId: ch, notes: notes.slice(0, 50).map((n) => ({ ...n, velocity: 0.5 })) }]);
   assert.equal(p.patterns[0].notes[ch].length, MAX_NOTES_PER_CHANNEL);
-  assert.throws(() => applyOps(p, [{ type: 'notes/add', patternId: pat, channelId: ch, notes: [{ key: 30, start: 0, length: 6 }] }]), /Max 8192 notes/);
+  assert.throws(() => applyOps(p, [{ type: 'notes/add', patternId: pat, channelId: ch, notes: [{ key: 30, start: 0, length: 6 }] }]), /最多 8192 个音符/);
 });
 
 test('step strings group by the felt beat (dotted quarters in 6/8)', async () => {
@@ -306,7 +306,7 @@ test('voicings: drop2, shell, rootless, spread keep chord tones; progressions st
     const avg = (s) => { const ks = notes.filter((n) => n.start === s).map((n) => n.key); return ks.reduce((a, b) => a + b, 0) / ks.length; };
     assert.ok(Math.abs(avg(0) - avg(384 * 3)) < 9, `${v} drifted`);
   }
-  assert.throws(() => chordProgressionNotes(['C'], { voicing: 'wide' }), /Unknown voicing/);
+  assert.throws(() => chordProgressionNotes(['C'], { voicing: 'wide' }), /不认识的排列法/);
 });
 
 test('bass lines: degrees follow the chord, slides overlap, ties extend, slash bass on R', async () => {
@@ -322,8 +322,8 @@ test('bass lines: degrees follow the chord, slides overlap, ties extend, slash b
   assert.equal(bar2.find((n) => n.start === 384 + 4 * 24).key % 12, 4); // 3 of C = E
   const tie = bassLineFromChords(['Am'], 'R:2 ~:2 5:4', { gate: 1 });
   assert.equal(tie[0].length, 96);
-  assert.throws(() => parseBassLine('R:0'), /Invalid length/);
-  assert.throws(() => parseBassLine('X:2'), /Invalid bass token/);
+  assert.throws(() => parseBassLine('R:0'), /时值不对/);
+  assert.throws(() => parseBassLine('X:2'), /贝斯记号/);
 });
 
 test('swing follows off-grid notes; channel groove fields and audio clip settings are ops', async () => {
@@ -364,7 +364,7 @@ test('markers: add (idempotent), rename, move, remove; normalized and sorted', a
   const n = normalizeProject(raw);
   assert.equal(n.markers.length, 3);
   assert.equal(new Set(n.markers.map((m) => m.id)).size, 3);
-  assert.throws(() => applyOps(p, [{ type: 'marker/update', id: 'nope', patch: {} }]), /not found/);
+  assert.throws(() => applyOps(p, [{ type: 'marker/update', id: 'nope', patch: {} }]), /找不到标记 nope/);
 });
 
 test('effects: new params have safe defaults; pump source is a channel reference', async () => {
@@ -418,7 +418,7 @@ test('scales for the world collections: Japanese pentatonics and Indian thaats',
   assert.equal(scaleSpelling('D', 'inSen')(3), 'Eb');
   assert.equal(scaleSpelling('E', 'iwato')(5), 'F');
   // thaats are melodic (over a drone): no misleading triads
-  for (const raga of ['bhairav', 'todi', 'purvi', 'marwa']) assert.throws(() => diatonicChords('C', raga), /played melodically/);
+  for (const raga of ['bhairav', 'todi', 'purvi', 'marwa']) assert.throws(() => diatonicChords('C', raga), /作旋律演奏/);
   for (const sc of ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'harmonicMinor', 'melodicMinor']) assert.equal(diatonicChords('C', sc).length, 7);
 });
 
@@ -429,20 +429,20 @@ test('world templates: Indian Fusion and East Asian Lo-fi use the collections; t
   assert.ok(indian.channels.every((c) => ['indian'].includes(INSTRUMENTS[c.instrument.kind].category)));
   assert.deepEqual([...new Set(indian.channels.map((c) => c.instrument.kind))].sort(), ['bansuri', 'harmonium', 'sitar', 'tabla', 'tanpura']);
   // meend: some sitar notes run into the next one (mono + glide slides there)
-  const sitar = indian.channels.find((c) => c.name === 'Sitar');
-  const line = indian.patterns.find((p) => p.name === 'Sitar').notes[sitar.id];
+  const sitar = indian.channels.find((c) => c.instrument.kind === 'sitar');
+  const line = indian.patterns.find((p) => p.notes[sitar.id]).notes[sitar.id];
   assert.ok(line.some((n, i) => line[i + 1] && n.start + n.length > line[i + 1].start));
   assert.ok(line.some((n, i) => line[i + 1] && n.start + n.length < line[i + 1].start));
   const inD = createProjectFromTemplate('indian', { key: 'D' });
   assert.ok(inD.channels.filter((c) => c.instrument.kind === 'tabla').every((c) => c.pitch === 2));
-  assert.equal(inD.channels.find((c) => c.name === 'Sitar').instrument.params.sa, 'D'); // the taraf follows the key
-  assert.equal(createProjectFromTemplate('indian', { key: 'Bb' }).channels.find((c) => c.name === 'Sitar').instrument.params.sa, 'A#');
-  assert.equal(inD.patterns.find((p) => p.name === 'Tanpura').notes[inD.channels[0].id][0].key, 45); // G2 → A2
+  assert.equal(inD.channels.find((c) => c.instrument.kind === 'sitar').instrument.params.sa, 'D'); // the taraf follows the key
+  assert.equal(createProjectFromTemplate('indian', { key: 'Bb' }).channels.find((c) => c.instrument.kind === 'sitar').instrument.params.sa, 'A#');
+  assert.equal(inD.patterns.find((p) => p.notes[inD.channels[0].id]).notes[inD.channels[0].id][0].key, 45); // G2 → A2
   const asia = createProjectFromTemplate('eastasian');
   assert.equal(asia.scale, 'hirajoshi');
   assert.equal(asia.swing, 0.3);
   for (const k of ['koto', 'shakuhachi', 'taiko', 'gong']) assert.ok(asia.channels.some((c) => c.instrument.kind === k), k);
-  assert.deepEqual(asia.markers.map((m) => m.name), ['Intro', 'Verse', 'Taiko']);
+  assert.deepEqual(asia.markers.map((m) => m.name), ['前奏', '主歌', '太鼓']);
 });
 
 test('genre templates: reverbs on send buses, kick sidechains, every part inside its pattern, heard and in the scale', async () => {
@@ -454,7 +454,7 @@ test('genre templates: reverbs on send buses, kick sidechains, every part inside
     p.mixer.forEach((m, i) => {
       if (m.effects.some((e) => e.type === 'reverb')) assert.ok(fed.has(i), `${t}: reverb on ${m.name} is not a send bus`);
     });
-    const kick = p.channels.find((c) => c.name === 'Kick');
+    const kick = p.channels.find((c) => /kick$/i.test(c.instrument.kind) || c.name === '底鼓');
     for (const fx of p.mixer.flatMap((m) => m.effects)) if (fx.type === 'pump') assert.equal(fx.params.source, kick?.id, `${t}: pump keyed by the kick`);
     const placed = p.patterns.filter((pt) => p.playlist.clips.some((c) => c.refId === pt.id));
     for (const pt of p.patterns) for (const n of Object.values(pt.notes).flat()) assert.ok(n.start + n.length <= pt.length, `${t}: ${pt.name} runs past its end`);
@@ -476,7 +476,7 @@ test('template labels state the tempo their project is built at', async () => {
     if (id === 'default' || id === 'empty') continue;
     const { bpm } = createProjectFromTemplate(id);
     assert.equal(t.bpm, bpm, id);
-    assert.ok(t.label.includes(`(${bpm} BPM`), `${id}: "${t.label}" should say ${bpm} BPM`);
+    assert.ok(/[（(]\d+ BPM/.test(t.label) && t.label.includes(`${bpm} BPM`), `${id}: "${t.label}" should say ${bpm} BPM`);
   }
 });
 
@@ -492,8 +492,8 @@ test('melody strings: "~" slides into the next note, "!" accents, junk after a l
   assert.deepEqual(melodyFromString('C4:2~ D4:.25').map((n) => n.start + n.length), [54, 54]);
   assert.deepEqual(melodyFromString('C4:2~ C4:2').map((n) => n.length), [48, 46]);
   for (const bad of ['C4:4x', 'C4:2:2', 'C4:', 'C4:-1', 'C5:1e4', 'C5:1/2', ':2']) {
-    assert.throws(() => melodyFromString(bad), /Invalid melody token/);
-    assert.throws(() => melodyLength(bad), /Invalid melody token/);
+    assert.throws(() => melodyFromString(bad), /旋律记号/);
+    assert.throws(() => melodyLength(bad), /旋律记号/);
   }
   // thaat numerals spell their roots like the scale (D bhairav = D Eb F# G A Bb C#)
   assert.equal(romanToChord('II', 'D', 'bhairav'), 'Eb');
@@ -519,18 +519,19 @@ test('world collections: flutes, beatbox, Indian and East Asian instruments are 
     flutes: ['flute', 'panflute', 'recorder', 'whistle', 'ocarina'],
     beatbox: ['bbkick', 'bbsnare', 'bbhat', 'bbbass', 'bbfx'],
     indian: ['sitar', 'tanpura', 'tabla', 'bansuri', 'shehnai', 'santoor', 'harmonium'],
-    eastasian: ['koto', 'guzheng', 'pipa', 'shamisen', 'erhu', 'shakuhachi', 'dizi', 'suona', 'taiko', 'gong']
+    eastasian: ['koto', 'guzheng', 'pipa', 'shamisen', 'erhu', 'shakuhachi', 'dizi', 'xiao', 'suona', 'taiko', 'gong', 'xun', 'muyu']
   };
   const drums = new Set(['bbkick', 'bbsnare', 'bbhat', 'bbfx', 'tabla', 'taiko', 'gong']);
   // instruments that slide between overlapping notes out of the box (meend, slurs, bends)
-  const legato = ['whistle', 'bbbass', 'sitar', 'bansuri', 'shehnai', 'erhu', 'shakuhachi', 'dizi', 'suona'];
+  const legato = ['whistle', 'bbbass', 'sitar', 'bansuri', 'shehnai', 'erhu', 'shakuhachi', 'dizi', 'xiao', 'suona', 'xun'];
   for (const [category, kinds] of Object.entries(collections)) {
     assert.deepEqual(Object.keys(INSTRUMENTS).filter((k) => INSTRUMENTS[k].category === category), kinds);
     for (const kind of kinds) {
       const def = INSTRUMENTS[kind];
       assert.equal(def.melodic, !drums.has(kind), `${kind} melodic`);
       if (!def.melodic) assert.equal(def.defaultKey, 60, `${kind}: drums play at their natural pitch on C4`);
-      assert.ok(def.description.length > 60, `${kind} needs a description Claude can use`);
+      // 中文单字承载的信息约等于英文的三个字母，阈值按中文密度折算（英文时代是 60）
+      assert.ok(def.description.length > 40, `${kind} needs a description Claude can use`);
       assert.match(def.color, /^#[0-9a-f]{6}$/);
       const defaults = instrumentDefaults(kind);
       for (const p of def.params) {
@@ -549,10 +550,10 @@ test('world collections: flutes, beatbox, Indian and East Asian instruments are 
       if (legato.includes(kind)) assert.equal(defaults.mono, true, `${kind} slides by default`);
     }
   }
-  assert.throws(() => makeInstrument('tabla', null, { stroke: 'tirakita' }, { strict: true }), /na, tin, tun, te, ge, ke, dha, dhin/);
-  assert.throws(() => makeInstrument('sitar', null, { sa: 'H' }, { strict: true }), /must be one of/);
-  assert.throws(() => makeInstrument('gong', null, { bend: 2 }, { strict: true }), /between -1 and 1/);
-  assert.throws(() => makeInstrument('flute', null, { buzz: 0.5 }, { strict: true }), /Unknown parameter "buzz"/); // only the dizi has a membrane
+  assert.throws(() => makeInstrument('tabla', null, { stroke: 'tirakita' }, { strict: true }), /na、tin、tun、te、ge、ke、dha、dhin/);
+  assert.throws(() => makeInstrument('sitar', null, { sa: 'H' }, { strict: true }), /只能是/);
+  assert.throws(() => makeInstrument('gong', null, { bend: 2 }, { strict: true }), /-1 到 1 之间/);
+  assert.throws(() => makeInstrument('flute', null, { buzz: 0.5 }, { strict: true }), /不认识的参数「buzz」/); // only the dizi has a membrane
   assert.equal(makeInstrument('dizi', 'Xiao').params.buzz, 0);
   assert.equal(makeInstrument('tabla', 'Dha').params.stroke, 'dha');
   const listed = describeInstruments();
@@ -580,8 +581,8 @@ test('band instruments: every param, preset and category is valid (piano, epiano
       assert.equal(Object.keys(inst.params).length, Object.keys(defaults).length);
     }
   }
-  assert.throws(() => makeInstrument('organ', null, { db8: 9 }, { strict: true }), /between 0 and 8/);
-  assert.throws(() => makeInstrument('strings', null, { articulation: 'tremolo' }, { strict: true }), /legato, staccato, pizzicato/);
+  assert.throws(() => makeInstrument('organ', null, { db8: 9 }, { strict: true }), /0 到 8 之间/);
+  assert.throws(() => makeInstrument('strings', null, { articulation: 'tremolo' }, { strict: true }), /legato、staccato、pizzicato/);
   assert.equal(makeInstrument('organ', null, { db4: 6.6 }).params.db4, 7); // drawbars are whole steps
   const kinds = describeInstruments().map((d) => d.kind);
   for (const k of Object.keys(band)) assert.ok(kinds.includes(k));
