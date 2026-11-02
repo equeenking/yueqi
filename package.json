@@ -25,7 +25,8 @@
     "lint": "eslint .",
     "reset-password": "node server/src/cli/reset-password.js",
     "plugin:pack": "node scripts/pack-plugin.mjs",
-    "skills:pack": "node scripts/pack-skills.mjs"
+    "skills:pack": "node scripts/pack-skills.mjs",
+    "samples:download": "node scripts/download_samples.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

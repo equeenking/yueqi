@@ -306,7 +306,28 @@ CC0-1.0（公有领域贡献）意味着这些录音可以自由用于任何用�
 
 仓库体积所限，约 230 MB 的 WAV 采样 **未进入版本库**（`client/public/samples/` 在 `.gitignore` 中）。
 新 clone 下来的仓库**没有**这些真实录音——应用会回退到合成音色（合成引擎零依赖，开箱即用）。
-下面的脚本可以从三个 CC0 来源重建完整的采样库：
+
+### 最快路径：npm run samples:download（推荐）
+
+采样库已打包成 zip 放在 GitHub Release `samples-v1`，一行命令下载 + 解压 + 校验 sha256：
+
+```bash
+npm run samples:download          # 自动检测、下载、解压到 client/public/samples/
+npm run samples:download -- --force  # 覆盖已有目录，重新下载
+```
+
+- **公开 Release**：上面直接能用，零配置。
+- **私有 Release**：需要一个有 repo 权限的 GitHub Personal Access Token：
+  ```bash
+  # Windows PowerShell
+  $env:GITHUB_TOKEN = "ghp_xxx"
+  npm run samples:download
+  ```
+- zip 大小约 **220 MB**，落盘到 `client/public/samples/`，sha256 自动校验。
+
+### 手动重建（备选，源码编译）
+
+如果 Release 附件不可用，也可以从源录音重新打包：
 
 **前置依赖**：Python 3.10+、`pip install numpy soundfile requests`、Git LFS（可选）。
 
