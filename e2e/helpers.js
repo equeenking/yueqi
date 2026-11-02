@@ -1,7 +1,18 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { expect } from '@playwright/test';
 
 export const ADMIN = { username: 'producer', password: 'correct-horse-42', displayName: 'Pat Producer' };
+
+/** 关掉新手欢迎弹窗（只在用户第一次进工作台时自动弹出；没弹就什么都不做）。 */
+export async function dismissWelcome(page) {
+  const welcome = page.locator('.welcome-overlay');
+  try {
+    await welcome.waitFor({ state: 'visible', timeout: 4000 });
+    await page.locator('.welcome-actions .btn.primary').click();
+  } catch { /* 没弹就不关 */ }
+  await expect(welcome).toHaveCount(0);
+}
 
 /** Connect an MCP client ("Claude") to the test server, optionally with a personal API token. */
 export async function connectMcp(baseURL, token) {

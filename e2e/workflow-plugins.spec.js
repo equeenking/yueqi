@@ -7,7 +7,7 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import { packPlugin } from '../scripts/pack-plugin.mjs';
 import { writeZip } from '../server/src/zip.js';
-import { ADMIN, connectMcp } from './helpers.js';
+import { ADMIN, dismissWelcome, menuItem, connectMcp } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -72,6 +72,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -90,7 +91,7 @@ async function choosePackage(file) {
 async function installViaUi(file, id) {
   await choosePackage(file);
   await page.getByTestId('plugin-trust').check();
-  await review().getByRole('button', { name: /^(Install|Update) plugin$/ }).click();
+  await review().getByRole('button', { name: /^(安装|更新)插件$/ }).click();
   await expect(page.getByTestId(`plugin-${id}`)).toBeVisible();
 }
 const project = async () => {
@@ -106,18 +107,19 @@ const stemLufs = (report, name) => {
 };
 
 test('nothing is installed until the user confirms they trust the author', async () => {
-  await page.locator('.toolbar button[title="Settings"]').click();
-  await page.getByRole('tab', { name: 'Plugins' }).click();
+  await page.locator('.tbtn.logo').click();
+  await menuItem(page, '设置…');
+  await page.getByRole('tab', { name: '插件' }).click();
   await choosePackage(zips.chiptune);
   // the warning, who made it, what it asks for — and what no plugin ever gets
-  await expect(review()).toContainText('Only install plugins from people you trust');
+  await expect(review()).toContainText('只安装你信任的人提供的插件');
   await expect(review()).toContainText('GreanTeaDawy examples');
   await expect(review()).toContainText('audio-processing');
   await expect(review()).toContainText('Never granted to any plugin: network');
   await expect(review()).toContainText(/SHA-256\s*[0-9a-f]{64}/);
-  const install = review().getByRole('button', { name: 'Install plugin' });
+  const install = review().getByRole('button', { name: '安装插件' });
   await expect(install).toBeDisabled();
-  await review().getByRole('button', { name: 'Cancel' }).click();
+  await review().getByRole('button', { name: '取消' }).click();
   await expect(review()).toHaveCount(0);
   expect((await (await page.request.get('/api/plugins')).json()).plugins).toEqual([]);
   // Claude can see there's nothing, and can't install anything itself
@@ -136,10 +138,10 @@ test('nothing is installed until the user confirms they trust the author', async
   const refused = errors.findIndex((e) => /status of 400/.test(e)); // the browser logs the refused upload's 400
   if (refused >= 0) errors.splice(refused, 1);
   // instrument plugins show up in the Browser
-  await page.getByRole('tab', { name: 'Sounds' }).click();
+  await page.getByRole('tab', { name: '声音' }).click();
   await expect(page.getByTestId('browser-plugins')).toContainText('Chiptune');
   await expect(page.getByTestId('browser-plugins')).toContainText('Kalimba');
-  await page.locator('[data-window="settings"] button[title="Close"]').click();
+  await page.locator('[data-window="settings"] button[title="关闭"]').click();
 });
 
 test('plugin instruments and effects play in renders; garbage is cleaned and crashes are bypassed', async () => {
@@ -198,17 +200,17 @@ test('generators run in the sandboxed iframe: from Claude and from the Generate 
   // project-read: the counter-melody answers the chip's line
   expect(await claude.call('run_generator', { plugin: 'greanteadawy.counter-melody', pattern: 'Tune', channel: 'Kalimba' })).toMatch(/generated \d+ notes/);
 
-  // the Generate window (piano roll → Gen) on the selected channel
-  await page.evaluate((id) => window.greanteadawy.store.setState({ selectedChannelId: id, pianoRollChannelId: id }), kal.id);
+  // the Generate window (piano roll → 生成) on the selected channel and pattern
+  await page.evaluate(({ ch, pat }) => window.greanteadawy.store.setState({ selectedChannelId: ch, pianoRollChannelId: ch, selectedPatternId: pat }), { ch: kal.id, pat: tune.id });
   await page.keyboard.press('F7');
-  await page.locator('[data-window="pianoRoll"] button', { hasText: 'Gen' }).click();
+  await page.locator('[data-window="pianoRoll"] button', { hasText: '生成' }).click();
   const gen = page.locator('[data-window="generate"]');
   await expect(gen).toBeVisible();
-  await expect(gen).toContainText('Into Kalimba');
+  await expect(gen).toContainText('到 Kalimba');
   await gen.locator('select').first().selectOption('greanteadawy.euclid');
   await gen.locator('select').nth(1).selectOption('Samba 7/16');
   await page.getByTestId('generate-run').click();
-  await expect(page.locator('.toast', { hasText: /Euclidean Rhythms: 7 notes on Kalimba/ })).toBeVisible();
+  await expect(page.locator('.toast', { hasText: /Euclidean Rhythms：7 个音符放在「Kalimba」/ })).toBeVisible();
   p = await project();
   expect(p.patterns.find((x) => x.name === 'Tune').notes[kal.id]).toHaveLength(7);
 });

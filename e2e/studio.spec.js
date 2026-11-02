@@ -2,7 +2,7 @@
 // samples with metadata → versions → API token lifecycle → users & sign-out.
 import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
-import { ADMIN, connectMcp, makeWav, menuItem } from './helpers.js';
+import { ADMIN, connectMcp, dismissWelcome, makeWav, menuItem } from './helpers.js';
 
 const VERSION = JSON.parse(fs.readFileSync(new URL('../client/package.json', import.meta.url), 'utf8')).version;
 
@@ -25,27 +25,28 @@ test.afterAll(async () => {
 const settings = () => page.locator('[data-window="settings"]');
 const openSettings = async (tab) => {
   await page.locator('.avatar').click();
-  await menuItem(page, tab === 'api' ? 'API token & MCP' : tab === 'users' ? 'Manage users' : 'Account settings');
+  await menuItem(page, tab === 'api' ? 'API 令牌与 MCP' : tab === 'users' ? '管理用户' : '账号设置');
   await expect(settings()).toBeVisible();
 };
 
 test('first run: create the admin account and land in the welcome project', async () => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /create the admin account/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /欢迎！创建管理员账号/ })).toBeVisible();
   const inputs = page.locator('.auth-field input');
   await inputs.nth(0).fill(ADMIN.displayName);
   await inputs.nth(1).fill(ADMIN.username);
   await page.locator('input[type=password]').nth(0).fill(ADMIN.password);
   await page.locator('input[type=password]').nth(1).fill('mismatch-123');
-  await page.getByRole('button', { name: /create admin/i }).click();
-  await expect(page.getByRole('alert')).toHaveText(/do not match/i);
+  await page.getByRole('button', { name: /创建管理员/ }).click();
+  await expect(page.getByRole('alert')).toHaveText(/两次输入的密码不一致/);
 
   await page.locator('input[type=password]').nth(1).fill(ADMIN.password);
-  await page.getByRole('button', { name: /create admin/i }).click();
+  await page.getByRole('button', { name: /创建管理员/ }).click();
   await expect(page.locator('.toolbar')).toBeVisible();
   await expect(page).toHaveTitle(/Welcome Trap Beat/);
   await expect(page.locator('.ch-row').first()).toBeVisible();
   await expect(page.locator('.conn.ok')).toBeVisible();
+  await dismissWelcome(page); // 首次进入工作台，新手指南会自动弹出
 });
 
 test('transport plays and stops', async () => {
@@ -53,7 +54,7 @@ test('transport plays and stops', async () => {
   const before = await time.textContent();
   await page.locator('.tbtn.play').click();
   await expect(time).not.toHaveText(before, { timeout: 5000 });
-  await page.locator('.tbtn[title="Stop"]').click();
+  await page.locator('.tbtn[title="停止"]').click();
   await expect(page.locator('.tbtn.play.active')).toHaveCount(0);
 });
 
@@ -84,12 +85,12 @@ test('render_mix renders and analyses in this browser tab', async ({ baseURL }) 
     await claude.close();
   }
   // the saved render shows up under Projects → Exports
-  await page.getByRole('tab', { name: 'Projects' }).click();
+  await page.getByRole('tab', { name: '我的乐曲' }).click();
   await expect(page.locator('.br-item a[download]').first()).toBeVisible();
 });
 
 test('uploaded samples show technical metadata, and Claude can read it', async ({ baseURL }) => {
-  await page.getByRole('tab', { name: 'Samples' }).click();
+  await page.getByRole('tab', { name: '采样' }).click();
   await page.getByTestId('sample-file-input').setInputFiles({ name: 'e2e-tone.wav', mimeType: 'audio/wav', buffer: makeWav({ freq: 220 }) });
   const row = page.locator('.br-item.sample', { hasText: 'e2e-tone' });
   await expect(row).toBeVisible();
@@ -115,10 +116,10 @@ test('uploaded samples show technical metadata, and Claude can read it', async (
 
 test('versions: save from the UI and restore', async () => {
   await page.locator('.tbtn.logo').click();
-  await menuItem(page, 'Versions');
+  await menuItem(page, '版本…');
   const win = page.locator('[data-window="versions"]');
   await expect(win).toBeVisible();
-  await win.getByRole('button', { name: /save version/i }).click();
+  await win.getByRole('button', { name: /保存版本/ }).click();
   await page.locator('.modal input').fill('E2E checkpoint');
   await page.locator('.modal .btn.primary').click();
   await expect(win.locator('.version-row', { hasText: 'E2E checkpoint' })).toBeVisible();
@@ -127,11 +128,11 @@ test('versions: save from the UI and restore', async () => {
   const lead = page.locator('.ch-row', { hasText: 'E2E Lead' });
   await expect(lead).toBeVisible();
   await lead.locator('.ch-name').click({ button: 'right' });
-  await menuItem(page, 'Delete');
+  await menuItem(page, '删除');
   if (await page.locator('.modal').isVisible()) await page.locator('.modal .btn.danger, .modal .btn.primary').last().click();
   await expect(page.locator('.ch-name', { hasText: 'E2E Lead' })).toHaveCount(0);
 
-  await win.locator('.version-row', { hasText: 'E2E checkpoint' }).getByRole('button', { name: 'Restore' }).click();
+  await win.locator('.version-row', { hasText: 'E2E checkpoint' }).getByRole('button', { name: '恢复' }).click();
   await page.locator('.modal .btn.primary').click();
   await expect(page.locator('.ch-name', { hasText: 'E2E Lead' })).toBeVisible();
   await win.locator('.wbtn.close').click();
@@ -140,7 +141,7 @@ test('versions: save from the UI and restore', async () => {
 test('API token: generate, use, regenerate, delete', async ({ baseURL, request }) => {
   await openSettings('api');
   const s = settings();
-  await s.getByRole('button', { name: /generate token/i }).click();
+  await s.getByRole('button', { name: /生成令牌/ }).click();
   const tokenText = await s.locator('.fresh-token pre').textContent();
   const token = tokenText.trim();
   expect(token).toMatch(/^gtd_[\w-]+_[\w-]+$/);
@@ -154,7 +155,7 @@ test('API token: generate, use, regenerate, delete', async ({ baseURL, request }
   await claude.close();
 
   // regenerate: old token stops working
-  await s.getByRole('button', { name: /regenerate/i }).click();
+  await s.getByRole('button', { name: /重新生成/ }).click();
   await page.locator('.modal .btn.danger').click();
   await expect(s.locator('.fresh-token pre')).not.toHaveText(token);
   const token2 = (await s.locator('.fresh-token pre').textContent()).trim();
@@ -162,16 +163,16 @@ test('API token: generate, use, regenerate, delete', async ({ baseURL, request }
   expect((await request.get('/api/me', { headers: { authorization: `Bearer ${token2}` } })).status()).toBe(200);
 
   // delete
-  await s.getByRole('button', { name: /^delete$/i }).click();
+  await s.getByRole('button', { name: /^删除$/ }).click();
   await page.locator('.modal .btn.danger').click();
-  await expect(s.getByRole('button', { name: /generate token/i })).toBeVisible();
+  await expect(s.getByRole('button', { name: /生成令牌/ })).toBeVisible();
   expect((await request.get('/api/me', { headers: { authorization: `Bearer ${token2}` } })).status()).toBe(401);
 });
 
 test('admin: require tokens for MCP, then token-less MCP is refused', async ({ baseURL }) => {
   const s = settings();
-  await s.getByRole('tab', { name: /server/i }).click();
-  const toggle = s.locator('.pref', { hasText: /without a token/i }).locator('.toggle');
+  await s.getByRole('tab', { name: '服务端' }).click();
+  const toggle = s.locator('.pref', { hasText: '允许本机不带令牌使用 MCP' }).locator('.toggle');
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
@@ -182,11 +183,11 @@ test('admin: require tokens for MCP, then token-less MCP is refused', async ({ b
 
 test('admin: create a user, who signs in to an empty-but-private studio', async ({ browser }) => {
   const s = settings();
-  await s.getByRole('tab', { name: /users/i }).click();
-  await s.getByPlaceholder('Username').fill('beatmaker');
-  await s.getByPlaceholder('Display name').fill('Bea Maker');
-  await s.getByPlaceholder(/initial password/i).fill('another-pass-9');
-  await s.getByRole('button', { name: /create user/i }).click();
+  await s.getByRole('tab', { name: '用户' }).click();
+  await s.getByPlaceholder('用户名').fill('beatmaker');
+  await s.getByPlaceholder('显示名').fill('Bea Maker');
+  await s.getByPlaceholder(/初始密码/).fill('another-pass-9');
+  await s.getByRole('button', { name: /创建用户/ }).click();
   await expect(s.locator('.users-table')).toContainText('@beatmaker');
 
   const ctx = await browser.newContext();
@@ -194,30 +195,28 @@ test('admin: create a user, who signs in to an empty-but-private studio', async 
   await p2.goto('/');
   await p2.locator('.auth-field input').nth(0).fill('beatmaker');
   await p2.locator('input[type=password]').fill('another-pass-9');
-  await p2.getByRole('button', { name: /sign in/i }).click();
+  await p2.locator('.auth-submit').click();
   await expect(p2.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(p2); // 新账号第一次进工作台也会弹新手指南
   // their own welcome project, not the admin's samples
-  await p2.getByRole('tab', { name: 'Samples' }).click();
+  await p2.getByRole('tab', { name: '采样' }).click();
   await expect(p2.locator('.br-item.sample')).toHaveCount(0);
   await ctx.close();
 });
 
-test('About: the top-right button opens a dialog with the app name and version; Escape, Close and the menu work', async () => {
-  const button = page.getByTestId('about-button');
-  await expect(button).toBeVisible();
-  // top right: after the window buttons, next to the account avatar
-  const [b, avatar, vp] = [await button.boundingBox(), await page.locator('.avatar').boundingBox(), page.viewportSize()];
-  expect(b.x).toBeGreaterThan(vp.width * 0.7);
-  expect(b.y).toBeLessThan(40);
-  expect(Math.abs(avatar.x - (b.x + b.width))).toBeLessThan(16);
-  await button.click();
-  const dialog = page.getByRole('dialog', { name: 'About GreanTeaDawy' });
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByTestId('about-version')).toHaveText(`Version ${VERSION}`);
+test('About: the ◆ menu opens a dialog with the app name and version; Escape, 关闭 and the menu work', async () => {
+  const openAbout = async () => {
+    await page.locator('.tbtn.logo').click();
+    await menuItem(page, '关于 GreanTeaDawy');
+    await expect(dialog).toBeVisible();
+  };
+  const dialog = page.getByRole('dialog', { name: '关于 GreanTeaDawy' });
+  await openAbout();
+  await expect(dialog.getByTestId('about-version')).toHaveText(`版本 ${VERSION}`);
   await expect(dialog.getByTestId('about-server')).toHaveText(`GreanTeaDawy ${VERSION}`); // the server's own version
-  await expect(dialog).toContainText(/\d+ instruments in \d+ collections/);
-  await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
-  // studio shortcuts don't fire while it is open (focus off the buttons, so Space can't just press Close)
+  await expect(dialog).toContainText(/\d+ 种乐器，分 \d+ 个分组/);
+  await expect(dialog.getByRole('button', { name: '关闭' })).toBeFocused();
+  // studio shortcuts don't fire while it is open (focus off the buttons, so Space can't just press 关闭)
   await dialog.locator('.about-tagline').click();
   await page.keyboard.press('Space');
   await page.keyboard.press('F9');
@@ -225,16 +224,13 @@ test('About: the top-right button opens a dialog with the app name and version; 
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
-  await expect(button).toBeFocused(); // focus goes back to the ⓘ button
-  // from the main menu, closed with the Close button
-  await page.locator('.tbtn.logo').click();
-  await menuItem(page, 'About GreanTeaDawy');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Close' }).click();
+  // from the menu again, closed with the 关闭 button（弹窗已加 flex + max-height，按钮始终在视口内）
+  await openAbout();
+  await dialog.getByRole('button', { name: '关闭' }).click();
   await expect(dialog).toBeHidden();
-  // "Shortcuts & help" closes it and opens the help window
-  await button.click();
-  await dialog.getByRole('button', { name: /Shortcuts & help/ }).click();
+  // "快捷键与帮助" closes it and opens the help window
+  await openAbout();
+  await dialog.getByRole('button', { name: '快捷键与帮助' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('[data-window="help"]')).toBeVisible();
   await page.evaluate(() => window.greanteadawy.store.getState().closeWindow('help'));
@@ -252,14 +248,14 @@ test('About: the top-right button opens a dialog with the app name and version; 
 
 test('sign out returns to the login screen; wrong password is rejected; sign in again', async () => {
   await page.locator('.avatar').click();
-  await menuItem(page, 'Sign out');
-  await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
+  await menuItem(page, '退出登录');
+  await expect(page.getByRole('heading', { name: /登录你的工作室/ })).toBeVisible();
   await page.locator('.auth-field input').nth(0).fill(ADMIN.username);
   await page.locator('input[type=password]').fill('wrong-password');
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.locator('.auth-submit').click();
   await expect(page.getByRole('alert')).toBeVisible();
   await page.locator('input[type=password]').fill(ADMIN.password);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await page.locator('.auth-submit').click();
   await expect(page.locator('.toolbar')).toBeVisible();
   await expect(page.locator('.ch-name', { hasText: 'E2E Lead' })).toBeVisible();
 });

@@ -9,7 +9,8 @@ const port = Number(process.env.E2E_PORT || 3199);
 const dataDir = path.join(os.tmpdir(), `greanteadawy-e2e-${port}`);
 fs.rmSync(dataDir, { recursive: true, force: true });
 
-const { server } = await createServer({ ...loadConfig({ ...process.env, HOST: '127.0.0.1', PORT: String(port) }), dataDir });
+// e2e covers the real login/setup flows: disable the (default-on) open mode explicitly
+const { server } = await createServer({ ...loadConfig({ ...process.env, HOST: '127.0.0.1', PORT: String(port), DISABLE_AUTH: 'false' }), dataDir });
 server.listen(port, '127.0.0.1', () => console.log(`e2e server on http://127.0.0.1:${port} (data: ${dataDir})`));
 
 const stop = () => {

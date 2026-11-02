@@ -3,7 +3,7 @@
 // Named so it runs after studio.spec.js (which performs first-run setup).
 import { test, expect } from '@playwright/test';
 import { decodeWav } from '@greanteadawy/core';
-import { ADMIN, connectMcp, menuItem } from './helpers.js';
+import { ADMIN, connectMcp, dismissWelcome, menuItem } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,6 +22,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -33,15 +34,15 @@ test('Claude builds a trap track with the production tools', async () => {
   await claude.call('create_project', { name: 'E2E Production', template: 'trap' });
   await expect(page).toHaveTitle(/E2E Production/);
   expect(await claude.call('apply_groove', { preset: 'trap' })).toMatch(/trap/);
-  expect(await claude.call('add_fill', { pattern: 'Drums', style: 'hat_roll' })).toMatch(/Drums Fill/);
+  expect(await claude.call('add_fill', { pattern: '鼓组', style: 'hat_roll' })).toMatch(/Created "鼓组 Fill"/);
   expect(await claude.call('add_transition', { type: 'impact', atBar: 5 })).toMatch(/impact/);
   expect(await claude.call('add_transition', { type: 'riser', atBar: 5, bars: 2 })).toMatch(/riser/);
-  // the template already marks Intro and Hook: re-adding them changes nothing, a new one appears in the playlist
+  // the template marks 前奏 and 副歌: the names below are new, so all three appear in the playlist
   expect(await claude.call('set_markers', { add: [{ bar: 1, name: 'Intro' }, { bar: 5, name: 'Hook' }, { bar: 13, name: 'Outro' }] })).toMatch(/Outro/);
   await expect(page.locator('.pl-marker', { hasText: 'Hook' })).toHaveCount(1);
   await expect(page.locator('.pl-marker', { hasText: 'Outro' })).toBeVisible();
   // the template's 808 ducks on the kick (pump with a source channel)
-  expect(await claude.call('get_project', {})).toMatch(/pump\[[^\]]+\]\{source:"Kick"/);
+  expect(await claude.call('get_project', {})).toMatch(/pump\[[^\]]+\]\{source:"底鼓"/);
 });
 
 test('analyze_sound measures single sounds in the browser', async () => {
@@ -49,7 +50,7 @@ test('analyze_sound measures single sounds in the browser', async () => {
   expect(bass).toMatch(/SOUND — "808" note C2/);
   expect(bass).toMatch(/Low end: strongest frequency (6[0-9]|7[0-2])(\.\d)? Hz/); // C2 = 65.4 Hz
   expect(bass).toMatch(/Envelope: attack \d+ ms/);
-  const kick = await claude.call('analyze_sound', { channel: 'Kick', through: 'insert' });
+  const kick = await claude.call('analyze_sound', { channel: '底鼓', through: 'insert' });
   expect(kick).toMatch(/Level: -\d+(\.\d)? LUFS/);
 });
 
@@ -62,7 +63,7 @@ test('render_mix reports true peak, limiter work and the distance to a target', 
 });
 
 test('export_stems writes one 24-bit WAV per channel into exports', async () => {
-  const out = await claude.call('export_stems', { mode: 'pattern', pattern: 'Drums', loops: 1 });
+  const out = await claude.call('export_stems', { mode: 'pattern', pattern: '鼓组', loops: 1 });
   const m = out.match(/Exported (\d+) stems \(24-bit/);
   expect(m, out).toBeTruthy();
   expect(Number(m[1])).toBeGreaterThanOrEqual(3);
@@ -76,15 +77,15 @@ test('export_stems writes one 24-bit WAV per channel into exports', async () => 
 
 test('File menu: stems and 24-bit WAV export', async () => {
   await page.locator('.tbtn.logo').click();
-  await menuItem(page, 'Export stems');
-  await expect(page.locator('.toast', { hasText: /Exported \d+ stems/ })).toBeVisible({ timeout: 60000 });
+  await menuItem(page, '导出分轨');
+  await expect(page.locator('.toast', { hasText: /已导出 \d+ 条分轨/ })).toBeVisible({ timeout: 60000 });
 });
 
 test('reverb buses add space, not level (regression guard)', async () => {
   const diffs = await page.evaluate(async () => {
     const p = window.greanteadawy.store.getState().project;
-    const chords = p.patterns.find((x) => x.name === 'Chords');
-    const padInsert = p.channels.find((c) => c.name === 'Pad').mixerTrack;
+    const chords = p.patterns.find((x) => x.name === '和弦');
+    const padInsert = p.channels.find((c) => c.name === '铺底').mixerTrack;
     const noMaster = { ...p, mixer: p.mixer.map((m, i) => (i === 0 ? { ...m, effects: [] } : m)) };
     const variant = (amount) => ({ ...noMaster, mixer: noMaster.mixer.map((m, i) => ({ ...m, sends: i === padInsert && amount ? m.sends.map((s) => ({ ...s, amount })) : [] })) });
     const db = (b) => {
@@ -105,9 +106,9 @@ test('reverb buses add space, not level (regression guard)', async () => {
 
 test('File menu: 24-bit WAV download', async () => {
   await page.locator('.tbtn.logo').click();
-  await page.locator('.context-menu .cm-item', { hasText: 'Export song as WAV' }).first().hover();
+  await page.locator('.context-menu .cm-item', { hasText: '导出歌曲为 WAV' }).first().hover();
   const download = page.waitForEvent('download', { timeout: 90000 });
-  await page.locator('.cm-sub .cm-item', { hasText: '24-bit' }).click();
+  await page.locator('.cm-sub .cm-item', { hasText: '24 位' }).click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(/24-bit\)\.wav$/);
   const fs = await import('node:fs/promises');
@@ -136,14 +137,14 @@ test('audio clip fades and repitch render without errors', async () => {
 test('Settings → Audio export shows ffmpeg; File → Export song as… MP3 downloads an MP3', async () => {
   const info = await (await page.request.get('/api/exports/formats')).json();
   await page.locator('.tbtn.logo').click();
-  await menuItem(page, 'Settings…');
-  await page.locator('.settings-tabs button', { hasText: 'Audio export' }).click();
+  await menuItem(page, '设置…');
+  await page.locator('.settings-tabs button', { hasText: '音频导出' }).click();
   const status = page.getByTestId('ffmpeg-status');
-  await expect(status).toContainText(info.ffmpeg.available ? `ffmpeg ${info.ffmpeg.version} is available` : 'ffmpeg is not available');
+  await expect(status).toContainText(info.ffmpeg.available ? `ffmpeg ${info.ffmpeg.version} is available` : 'ffmpeg 不可用');
   await expect(page.locator('.export-formats tr', { hasText: 'FLAC' })).toBeVisible();
   await page.locator('.window.settings .wbtn.close').click();
   await page.locator('.tbtn.logo').click();
-  await page.locator('.context-menu .cm-item', { hasText: 'Export song as…' }).hover();
+  await page.locator('.context-menu .cm-item', { hasText: '导出歌曲为…' }).hover();
   const mp3 = page.locator('.cm-sub .cm-item', { hasText: /^MP3 \(320 kbps\)/ });
   if (!info.formats.find((f) => f.id === 'mp3').available) {
     await expect(mp3).toBeDisabled();

@@ -1,7 +1,7 @@
 // The GarageBand-style band instruments in a real browser: Claude builds a band arrangement over MCP, the physical
 // models (piano, guitar, bass, pizzicato) render in background workers, and every instrument plays live and offline.
 import { test, expect } from '@playwright/test';
-import { ADMIN, connectMcp } from './helpers.js';
+import { ADMIN, connectMcp, dismissWelcome } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,6 +22,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -41,7 +42,7 @@ const BAND = [
 
 test('list_instruments describes the band instruments', async () => {
   const list = await claude.call('list_instruments', {});
-  for (const kind of ['piano', 'epiano', 'organ', 'guitar', 'bass', 'strings']) expect(list).toMatch(new RegExp(`^${kind} \\(`, 'm'));
+  for (const kind of ['piano', 'epiano', 'organ', 'guitar', 'bass', 'strings']) expect(list).toMatch(new RegExp(`^${kind}（`, 'm'));
   expect(await claude.call('list_instruments', { kind: 'organ' })).toMatch(/db16/);
 });
 
@@ -69,12 +70,12 @@ test('Claude builds a band arrangement that renders cleanly', async () => {
 test('Claude asks for the export formats and exports the band as FLAC (ffmpeg on the server)', async () => {
   const formats = await claude.call('list_export_formats', {});
   expect(formats).toMatch(/- wav — WAV/);
-  if (!/ffmpeg [^\s]+ is available/.test(formats)) {
-    await expect(claude.call('export_audio', { format: 'flac' })).rejects.toThrow(/can't be exported here/);
+  if (!/ffmpeg [^\s]+ 可用/.test(formats)) {
+    await expect(claude.call('export_audio', { format: 'flac' })).rejects.toThrow(/导不了/);
     return;
   }
   const out = await claude.call('export_audio', { format: 'flac', title: 'Band Demo', artist: 'E2E' });
-  expect(out).toMatch(/Exported E2E_Band-[\w-]+\.flac \(FLAC, 24-bit/);
+  expect(out).toMatch(/已导出 E2E_Band-[\w-]+\.flac（FLAC、24 位/);
   const url = out.match(/(\/api\/exports\/[^\s)]+\.flac)/)[1];
   const res = await page.request.get(url);
   expect(res.status()).toBe(200);
@@ -99,8 +100,8 @@ test('physical models render in background workers; every band instrument plays 
 });
 
 test('Browser lists the Keys, Guitar and Strings categories', async () => {
-  for (const cat of ['Keys', 'Guitar', 'Strings']) await expect(page.locator('.br-cat', { hasText: cat })).toBeVisible();
-  await expect(page.locator('.br-name', { hasText: 'Drawbar Organ' })).toBeVisible();
+  for (const cat of ['键盘', '吉他', '弦乐']) await expect(page.locator('.br-cat', { hasText: cat })).toBeVisible();
+  await expect(page.locator('.inst-label', { hasText: '拉杆风琴' })).toBeVisible();
 });
 
 test('no uncaught errors in the browser', async () => {

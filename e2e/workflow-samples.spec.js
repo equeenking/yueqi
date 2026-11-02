@@ -3,7 +3,7 @@
 // microphone, alone and over the song) and Claude's edit_sample — in a real browser.
 import { test, expect } from '@playwright/test';
 import { trackPitch, findNotes, decodeWav } from '@greanteadawy/core';
-import { ADMIN, connectMcp, makeWav, menuItem, voiceWav } from './helpers.js';
+import { ADMIN, dismissWelcome, connectMcp, makeWav, menuItem, voiceWav } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 test.use({
@@ -40,10 +40,11 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
   await claude.call('create_project', { name: 'E2E Samples', bpm: 120, template: 'empty', key: 'C', scale: 'major' });
   await expect(page).toHaveTitle(/E2E Samples/);
-  await page.getByRole('tab', { name: 'Samples' }).click();
+  await page.getByRole('tab', { name: '采样' }).click();
 });
 test.afterAll(async () => {
   await claude?.close();
@@ -56,14 +57,14 @@ test('folders: create, file by menu and by drag, search, collapse, bulk move', a
   await upload('Vox Hook', voiceWav([{ hz: 220, dur: 0.6 }]));
   // no folders yet: a plain list
   if (!(await state((s) => s.sampleFolders.length))) await expect(page.locator('.br-folder')).toHaveCount(0);
-  await page.getByRole('button', { name: 'New folder' }).click();
+  await page.getByRole('button', { name: '新建文件夹' }).click();
   await page.locator('.modal input').fill('Drums');
   await page.locator('.modal .btn.primary').click();
   await expect(folderHeader('Drums')).toBeVisible();
-  await expect(folderHeader('Unfiled')).toBeVisible();
-  // ⋯ → Move to folder → Drums
+  await expect(folderHeader('Unfiled')).toBeVisible(); // 分组头仍是英文 'Unfiled'（仅菜单/toast 用「未归档」）
+  // ⋯ → 移动到文件夹 → Drums
   await row('Kick Punch').getByRole('button', { name: 'More actions for Kick Punch' }).click();
-  await page.locator('.context-menu .cm-item', { hasText: 'Move to folder' }).hover();
+  await page.locator('.context-menu .cm-item', { hasText: '移动到文件夹' }).hover();
   await page.locator('.cm-sub .cm-item', { hasText: 'Drums' }).click();
   await expect(folderHeader('Drums').locator('.br-meta')).toHaveText('1');
   // drag a sample onto the folder header
@@ -71,14 +72,14 @@ test('folders: create, file by menu and by drag, search, collapse, bulk move', a
   await expect(folderHeader('Drums').locator('.br-meta')).toHaveText('2');
   expect((await sampleByName('Snare Crack')).folderId).toBeTruthy();
   // search matches name words across folders
-  const search = page.getByRole('searchbox', { name: 'Search samples' });
+  const search = page.getByRole('searchbox', { name: '搜索采样' });
   await search.fill('snare crack');
   await expect(page.locator('.br-item.sample')).toHaveCount(1);
   await search.fill('vox hook');
   await expect(page.locator('.br-item.sample')).toHaveCount(1);
   await expect(folderHeader('Drums')).toHaveCount(0);
   await search.fill('nothing like this');
-  await expect(page.locator('.br-empty', { hasText: 'No samples match' })).toBeVisible();
+  await expect(page.locator('.br-empty', { hasText: '没有匹配' })).toBeVisible();
   await search.fill('');
   // collapse remembers
   await folderHeader('Drums').getByRole('button', { name: 'Collapse Drums' }).click();
@@ -86,16 +87,16 @@ test('folders: create, file by menu and by drag, search, collapse, bulk move', a
   await folderHeader('Drums').getByRole('button', { name: 'Expand Drums' }).click();
   await expect(row('Kick Punch')).toBeVisible();
   // select mode: move two to a new folder
-  await page.getByRole('button', { name: 'Select several samples' }).click();
+  await page.getByRole('button', { name: '选择多个采样' }).click();
   await row('Kick Punch').getByRole('checkbox').check();
   await row('Vox Hook').getByRole('checkbox').check();
   await expect(page.locator('.smp-bulk')).toContainText('2 selected');
-  await page.locator('.smp-bulk').getByRole('button', { name: 'Move to…' }).click();
-  await menuItem(page, 'New folder…');
+  await page.locator('.smp-bulk').getByRole('button', { name: '移动到…' }).click();
+  await menuItem(page, '新建文件夹…');
   await page.locator('.modal input').fill('Keepers');
   await page.locator('.modal .btn.primary').click();
   await expect(folderHeader('Keepers').locator('.br-meta')).toHaveText('2');
-  await page.locator('.smp-bulk').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.smp-bulk').getByRole('button', { name: '完成' }).click();
   // Claude sees the same folders
   const keepers = await claude.call('list_samples', { folder: 'Keepers' });
   expect(keepers).toMatch(/^## Keepers \[fld_\w+\]$/m);
@@ -106,7 +107,7 @@ test('folders: create, file by menu and by drag, search, collapse, bulk move', a
   // rename and delete a folder from its menu: the samples stay (unfiled)
   const unfiledBefore = Number(await folderHeader('Unfiled').locator('.br-meta').textContent());
   await folderHeader('Keepers').getByRole('button', { name: 'Actions for folder Keepers' }).click();
-  await menuItem(page, 'Delete folder…');
+  await menuItem(page, '删除文件夹…');
   await expect(page.locator('.modal')).toContainText('Its 2 samples will be kept');
   await page.locator('.modal .btn.danger').click();
   await expect(folderHeader('Keepers')).toHaveCount(0);
@@ -118,7 +119,7 @@ test('deleting a sample that a project uses says where, and the channels go sile
   await claude.call('add_channel', { name: 'Snare S', instrument: 'sampler', sampleId: snare.id });
   await claude.call('add_audio_clip', { sampleId: snare.id, startBar: 2 });
   await row('Snare Crack').getByRole('button', { name: 'More actions for Snare Crack' }).click();
-  await menuItem(page, 'Delete…');
+  await menuItem(page, '删除…');
   const modal = page.locator('.modal');
   await expect(modal).toContainText('Still in use');
   await expect(modal).toContainText('E2E Samples (channel Snare S, 1 clip)');
@@ -131,7 +132,7 @@ test('wave editor: select, delete, undo, fade, save as new, replace original (wi
   const vox = await sampleByName('Vox Hook');
   await claude.call('add_audio_clip', { sampleId: vox.id, startBar: 1 });
   await row('Vox Hook').getByRole('button', { name: 'More actions for Vox Hook' }).click();
-  await menuItem(page, 'Edit in wave editor');
+  await menuItem(page, '在波形编辑器中编辑');
   const ed = page.getByTestId('wave-editor');
   await expect(ed).toBeVisible();
   await expect(page.getByTestId('wave-info')).toContainText('0.600 s');
@@ -143,7 +144,7 @@ test('wave editor: select, delete, undo, fade, save as new, replace original (wi
   await page.mouse.move(b.x + (2 * b.width) / 3, b.y + b.height / 2, { steps: 5 });
   await page.mouse.up();
   await expect(page.getByTestId('wave-info')).toContainText('Selection');
-  await ed.getByRole('button', { name: 'Delete selection' }).click();
+  await ed.getByRole('button', { name: '删除选区' }).click();
   await expect(page.getByTestId('wave-info')).toContainText(/0\.4\d\d s/);
   await expect(page.locator('[data-window="waveEditor"] .window-name')).toContainText('•');
   await page.keyboard.press('Control+z');
@@ -174,9 +175,9 @@ test('wave editor: select, delete, undo, fade, save as new, replace original (wi
   await expect(page.getByTestId('wave-info')).toContainText(/0\.4\d\d s/);
   await state((s) => s.moveWindow('waveEditor', { max: false }));
   expect(await state((s) => s.project.playlist.clips.length)).toBe(2);
-  await ed.getByRole('button', { name: 'Fade out' }).click();
+  await ed.getByRole('button', { name: '淡出' }).click();
   // save as new: the original stays
-  await ed.getByRole('button', { name: 'Save as new…' }).click();
+  await ed.getByRole('button', { name: '另存为…' }).click();
   await page.locator('.modal input').fill('Vox Hook short');
   await page.locator('.modal .btn.primary').click();
   await expect.poll(() => sampleByName('Vox Hook short').then((s) => s?.duration)).toBeLessThan(0.5);
@@ -186,12 +187,12 @@ test('wave editor: select, delete, undo, fade, save as new, replace original (wi
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-testid="wave-editor"]'))).toBe(true);
   // replace the original: the warning names the project, the sample keeps its id and every user hears the new audio
   await row('Vox Hook').getByRole('button', { name: 'More actions for Vox Hook' }).click();
-  await menuItem(page, 'Edit in wave editor');
+  await menuItem(page, '在波形编辑器中编辑');
   await expect(page.locator('[data-window="waveEditor"] .window-name')).toHaveText('Edit — Vox Hook');
   await expect(page.getByTestId('wave-info')).toContainText('0.600 s');
   await ed.locator('canvas.we-main').dblclick();
-  await ed.getByRole('button', { name: 'Normalise' }).click();
-  await ed.getByRole('button', { name: 'Replace original…' }).click();
+  await ed.getByRole('button', { name: '归一' }).click();
+  await ed.getByRole('button', { name: '替换原始…' }).click();
   const modal = page.locator('.modal');
   await expect(modal).toContainText('used in 1 project');
   await expect(modal).toContainText('E2E Samples');
@@ -212,10 +213,10 @@ test('pitch correction: auto-tune to the key, move a note by hand, save as a sam
   // C4 +40 cents, D4 -35 cents, G4 +30 cents
   await upload('Vocal Take', voiceWav([{ hz: sharp(261.63, 40), dur: 0.45 }, { hz: 0, dur: 0.1 }, { hz: sharp(293.66, -35), dur: 0.45 }, { hz: 0, dur: 0.1 }, { hz: sharp(392, 30), dur: 0.45 }]));
   await row('Vocal Take').getByRole('button', { name: 'More actions for Vocal Take' }).click();
-  await menuItem(page, 'Edit in wave editor');
-  await page.locator('.we-tabs').getByRole('tab', { name: 'Pitch' }).click();
-  await expect(page.getByTestId('pitch-status')).toContainText('3 notes');
-  await expect(page.getByTestId('pitch-status')).toContainText(/largest move 0\.(3|4)\d semitones/);
+  await menuItem(page, '在波形编辑器中编辑');
+  await page.locator('.we-tabs').getByRole('tab', { name: '音高' }).click();
+  await expect(page.getByTestId('pitch-status')).toContainText('3 个音符');
+  await expect(page.getByTestId('pitch-status')).toContainText(/最大修正 0\.(3|4)\d 半音/);
   // the project is in C major: Key C, Scale major
   await expect(page.locator('.pv-controls select').first()).toHaveValue('C');
   await expect(page.locator('.pv-controls select').nth(1)).toHaveValue('major');
@@ -257,25 +258,25 @@ test('pitch correction: auto-tune to the key, move a note by hand, save as a sam
   await page.mouse.down();
   for (let dy = 4; dy < 160; dy += 3) {
     await page.mouse.move(x, b.y + yOfNote - dy);
-    if (/largest move 1\.[67]\d/.test(await page.getByTestId('pitch-status').textContent())) break;
+    if (/最大修正 1\.[67]\d/.test(await page.getByTestId('pitch-status').textContent())) break;
   }
   await page.mouse.up();
-  await expect(page.getByTestId('pitch-status')).toContainText(/largest move 1\.[67]\d semitones/);
+  await expect(page.getByTestId('pitch-status')).toContainText(/最大修正 1\.[67]\d 半音/);
   // split the first note in two, then join the halves again (fixing the detection by hand)
   await page.mouse.click(b.x + b.width * 0.12, b.y + (await noteY(0.12)), { button: 'right' });
-  await menuItem(page, 'Split the note here');
-  await expect(page.getByTestId('pitch-status')).toContainText('4 notes');
+  await menuItem(page, '在此切分音符');
+  await expect(page.getByTestId('pitch-status')).toContainText('4 个音符');
   await page.mouse.click(b.x + b.width * 0.05, b.y + (await noteY(0.05)), { button: 'right' });
-  await menuItem(page, 'Join with the next note');
-  await expect(page.getByTestId('pitch-status')).toContainText('3 notes');
+  await menuItem(page, '与后一个音符合并');
+  await expect(page.getByTestId('pitch-status')).toContainText('3 个音符');
   // the hand-placed note survives a look at the waveform
-  await page.locator('.we-tabs').getByRole('tab', { name: 'Wave' }).click();
-  await page.locator('.we-tabs').getByRole('tab', { name: 'Pitch' }).click();
-  await expect(page.getByTestId('pitch-status')).toContainText(/largest move 1\.[67]\d semitones/);
+  await page.locator('.we-tabs').getByRole('tab', { name: '波形' }).click();
+  await page.locator('.we-tabs').getByRole('tab', { name: '音高' }).click();
+  await expect(page.getByTestId('pitch-status')).toContainText(/最大修正 1\.[67]\d 半音/);
   await expect(page.locator('.pv-presets .btn.on')).toHaveText('Robotic');
-  await page.locator('.pv-controls').getByRole('button', { name: 'Apply' }).click();
-  await expect(page.getByTestId('pitch-status')).toContainText(/3 notes · largest move 0\.0\d/, { timeout: 30000 });
-  await page.getByTestId('wave-editor').getByRole('button', { name: 'Save as new…' }).click();
+  await page.locator('.pv-controls').getByRole('button', { name: '应用' }).click();
+  await expect(page.getByTestId('pitch-status')).toContainText(/3 个音符 · 最大修正 0\.0\d/, { timeout: 30000 });
+  await page.getByTestId('wave-editor').getByRole('button', { name: '另存为…' }).click();
   await page.locator('.modal input').fill('Vocal Tuned');
   await page.locator('.modal .btn.primary').click();
   await expect.poll(() => sampleByName('Vocal Tuned').then((s) => !!s)).toBe(true);
@@ -290,24 +291,24 @@ test('pitch correction: auto-tune to the key, move a note by hand, save as a sam
 });
 
 test('recorder: a take from the (fake) microphone, alone and over the song, saved in Recordings and placed', async () => {
-  await page.getByRole('button', { name: 'Record audio' }).click();
+  await page.getByRole('button', { name: '录制音频' }).click();
   const rec = page.getByTestId('recorder');
   await expect(rec).toBeVisible();
-  await rec.getByRole('button', { name: 'Enable microphone' }).click();
+  await rec.getByRole('button', { name: '启用麦克风' }).click();
   await expect(rec.getByRole('meter')).toBeVisible();
   await expect.poll(() => rec.getByRole('meter').getAttribute('data-db').then(Number), { timeout: 10000 }).toBeGreaterThan(-40);
   // microphone only
   await rec.locator('select').nth(2).selectOption('none');
-  await rec.getByRole('button', { name: 'Record' }).click();
+  await rec.getByRole('button', { name: '录音' }).click();
   await page.waitForTimeout(1200);
-  await rec.getByRole('button', { name: 'Stop' }).click();
+  await rec.getByRole('button', { name: '停止' }).click();
   await expect(rec.locator('.rec-take')).toHaveCount(1, { timeout: 15000 });
   const take1 = await state((s) => s.samples.find((x) => /^Take 1/.test(x.name)));
   expect(take1.duration).toBeGreaterThan(0.9);
   expect(take1.duration).toBeLessThan(1.8);
   const folders = await state((s) => s.sampleFolders.map((f) => f.name));
-  expect(folders).toContain('Recordings');
-  expect(take1.folderId).toBe(await state((s) => s.sampleFolders.find((f) => f.name === 'Recordings').id));
+  expect(folders).toContain('录音');
+  expect(take1.folderId).toBe(await state((s) => s.sampleFolders.find((f) => f.name === '录音').id));
   // the focus stays in the recorder after saving (the Stop button isn't disabled), and a click on a blank part keeps
   // Space away from the studio's transport
   expect(await page.evaluate(() => !!document.activeElement?.closest('[data-testid="recorder"]'))).toBe(true);
@@ -320,10 +321,10 @@ test('recorder: a take from the (fake) microphone, alone and over the song, save
   await rec.locator('select').nth(2).selectOption('song');
   await rec.locator('.rec-row.checks select').selectOption('0');
   const clipsBefore = await state((s) => s.project.playlist.clips.length);
-  await rec.getByRole('button', { name: 'Record' }).click();
+  await rec.getByRole('button', { name: '录音' }).click();
   await expect.poll(() => state((s) => s.playing)).toBe(true);
   await page.waitForTimeout(1500);
-  await rec.getByRole('button', { name: 'Stop' }).click();
+  await rec.getByRole('button', { name: '停止' }).click();
   await expect(rec.locator('.rec-take')).toHaveCount(2, { timeout: 15000 });
   await expect(rec.locator('.rec-take').first()).toContainText('track');
   expect(await state((s) => s.playing)).toBe(false);
@@ -332,10 +333,10 @@ test('recorder: a take from the (fake) microphone, alone and over the song, save
   expect(clip.kind).toBe('audio');
   expect(clip.start).toBe(2 * 384);
   const take2 = await state((s, id) => s.samples.find((x) => x.id === id), clip.refId);
-  expect(take2.name).toMatch(/^Take 2 \(bar 3\)/);
-  // "Tune" opens the take in the Pitch tab
-  await rec.locator('.rec-take').first().getByRole('button', { name: 'Tune' }).click();
-  await expect(page.locator('.we-tabs').getByRole('tab', { name: 'Pitch' })).toHaveAttribute('aria-selected', 'true');
+  expect(take2.name).toMatch(/^Take \d+ \(bar 3\) — E2E Samples$/);
+  // "音高" opens the take in the Pitch tab
+  await rec.locator('.rec-take').first().getByRole('button', { name: '音高' }).click();
+  await expect(page.locator('.we-tabs').getByRole('tab', { name: '音高' })).toHaveAttribute('aria-selected', 'true');
   await page.locator('[data-window="waveEditor"] .wbtn.close').click();
   await page.locator('[data-window="recorder"] .wbtn.close').click();
 });

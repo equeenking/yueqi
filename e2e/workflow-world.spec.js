@@ -2,7 +2,7 @@
 // over MCP, every channel renders (stems with real levels, no NaN), every instrument plays live, and the Browser and the
 // "+ Channel" menu offer the new sections.
 import { test, expect } from '@playwright/test';
-import { ADMIN, connectMcp, menuItem } from './helpers.js';
+import { ADMIN, connectMcp, dismissWelcome, menuItem } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -21,6 +21,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -70,11 +71,11 @@ const COLLECTIONS = {
 
 test('list_instruments groups the new collections', async () => {
   const list = await claude.call('list_instruments', {});
-  for (const label of ['Flutes', 'Beatbox', 'Indian', 'East Asian']) expect(list).toMatch(new RegExp(`^## ${label}$`, 'm'));
-  for (const kind of ['flute', 'bbkick', 'sitar', 'tabla', 'koto', 'erhu', 'taiko', 'gong']) expect(list).toMatch(new RegExp(`^${kind} \\(`, 'm'));
+  for (const label of ['吹管', '人声节奏', '印度乐器', '中国与东亚民乐']) expect(list).toMatch(new RegExp(`^## ${label}$`, 'm'));
+  for (const kind of ['flute', 'bbkick', 'sitar', 'tabla', 'koto', 'erhu', 'taiko', 'gong']) expect(list).toMatch(new RegExp(`^${kind}（`, 'm'));
   const indian = await claude.call('list_instruments', { category: 'indian' });
-  expect(indian).toMatch(/^tabla \(/m);
-  expect(indian).not.toMatch(/^koto \(/m);
+  expect(indian).toMatch(/^tabla（/m);
+  expect(indian).not.toMatch(/^koto（/m);
   expect(await claude.call('list_instruments', { kind: 'sitar' })).toMatch(/sympathetic/);
 });
 
@@ -118,20 +119,20 @@ test('every new instrument plays live from the keyboard', async () => {
 });
 
 test('the Browser and the + Channel menu offer the new collections', async () => {
-  await page.getByRole('tab', { name: 'Sounds' }).click();
-  for (const cat of ['Flutes', 'Beatbox', 'Indian', 'East Asian']) await expect(page.locator('.br-cat', { hasText: new RegExp(`^${cat}$`) })).toBeVisible();
+  await page.getByRole('tab', { name: '声音' }).click();
+  for (const cat of ['吹管', '人声节奏', '印度乐器', '中国与东亚民乐']) await expect(page.locator('.br-cat', { hasText: new RegExp(`^${cat}`) })).toBeVisible();
   const before = await page.locator('.ch-row').count();
-  await page.locator('.br-item', { hasText: 'Shakuhachi' }).locator('.br-add').click();
+  await page.locator('.inst-tile', { hasText: '尺八' }).locator('.inst-add').click();
   await expect(page.locator('.ch-row')).toHaveCount(before + 1);
   // + Channel: collection → instrument → preset
   await page.evaluate(() => window.greanteadawy.store.getState().openWindow('channelRack'));
   await page.locator('[data-window="channelRack"] .add-channel').click();
-  await page.locator('.context-menu .cm-item', { hasText: 'Indian' }).hover();
-  await page.locator('.cm-sub .cm-item', { hasText: 'Tabla' }).hover();
-  await menuItem(page, 'Dhin');
+  await page.locator('.context-menu .cm-item', { hasText: '印度乐器' }).hover();
+  await page.locator('.cm-sub .cm-item', { hasText: '塔布拉鼓' }).hover();
+  await menuItem(page, '丁');
   await expect(page.locator('.ch-row')).toHaveCount(before + 2);
   const last = await page.evaluate(() => window.greanteadawy.store.getState().project.channels.at(-1));
-  expect(last.instrument).toMatchObject({ kind: 'tabla', preset: 'Dhin', params: { stroke: 'dhin' } });
+  expect(last.instrument).toMatchObject({ kind: 'tabla', preset: '丁', params: { stroke: 'dhin' } });
 });
 
 test('velocity-0 notes are skipped without disturbing the transport', async () => {

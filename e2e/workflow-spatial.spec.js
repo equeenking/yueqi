@@ -2,7 +2,7 @@
 // exports (binaural, 5.1, 7.1.4, object stems, ADM BWF) put the sound where the objects are.
 import { test, expect } from '@playwright/test';
 import { decodeWav, SPEAKER_LAYOUTS } from '@greanteadawy/core';
-import { ADMIN, connectMcp } from './helpers.js';
+import { ADMIN, dismissWelcome, menuItem, connectMcp } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -21,6 +21,7 @@ test.beforeAll(async ({ browser, baseURL }) => {
   else if (!status.user) await page.request.post('/api/auth/login', { data: { username: ADMIN.username, password: ADMIN.password } });
   await page.goto('/');
   await expect(page.locator('.toolbar')).toBeVisible();
+  await dismissWelcome(page);
   claude = await connectMcp(baseURL);
 });
 test.afterAll(async () => {
@@ -56,7 +57,7 @@ test('one object: 5.1 puts it in its speaker, 7.1.4 lifts it to the heights, bin
   expect(await claude.call('place_object', { insert: 'Lead', position: 'rear-left' })).toMatch(/x -1, y -1, z 0/);
 
   const out51 = await claude.call('export_spatial', { format: '5.1', mode: 'pattern', pattern: 'Tune', loops: 1 });
-  expect(out51).toMatch(/Exported 5\.1 speakers/);
+  expect(out51).toMatch(/已导出 5\.1 speakers/);
   const w51 = await fetchWav(out51);
   expect(new DataView(w51.buffer).getUint32(40, true)).toBe(SPEAKER_LAYOUTS['5.1'].mask);
   const d51 = decodeWav(w51);
@@ -77,7 +78,7 @@ test('one object: 5.1 puts it in its speaker, 7.1.4 lifts it to the heights, bin
 
   await claude.call('place_object', { insert: 'Lead', position: 'left' });
   const outB = await claude.call('export_spatial', { format: 'binaural', mode: 'pattern', pattern: 'Tune', loops: 1 });
-  expect(outB).toMatch(/Binaural loudness -?\d+(\.\d)? LUFS/);
+  expect(outB).toMatch(/双耳响度 -?\d+(\.\d)? LUFS/);
   const wb = decodeWav(await fetchWav(outB));
   expect(wb.channels.length).toBe(2);
   expect(energy(wb.channels[0])).toBeGreaterThan(4 * energy(wb.channels[1])); // HRTF: the left ear hears it louder
@@ -86,44 +87,45 @@ test('one object: 5.1 puts it in its speaker, 7.1.4 lifts it to the heights, bin
 test('Claude spatializes a band: moving objects, object stems with positions, ADM BWF', async () => {
   await claude.call('create_project', { name: 'E2E Atmos Band', template: 'band' });
   await expect(page).toHaveTitle(/E2E Atmos Band/);
-  await claude.call('place_object', { insert: 'Strings', position: 'overhead' });
-  await claude.call('place_object', { insert: 'Guitar', position: 'wide-left' });
-  await claude.call('place_object', { insert: 'Piano', position: 'front-right', z: 0.3 });
-  expect(await claude.call('move_object', { insert: 'Strings', path: 'circle', startBar: 13, bars: 8, height: 0.6 })).toMatch(/circle/);
-  expect(await claude.call('set_spatial', { monitor: 'binaural' })).toMatch(/monitoring binaural/);
+  await claude.call('place_object', { insert: '弦乐', position: 'overhead' });
+  await claude.call('place_object', { insert: '吉他', position: 'wide-left' });
+  await claude.call('place_object', { insert: '钢琴', position: 'front-right', z: 0.3 });
+  expect(await claude.call('move_object', { insert: '弦乐', path: 'circle', startBar: 13, bars: 8, height: 0.6 })).toMatch(/圆形/);
+  expect(await claude.call('set_spatial', { monitor: 'binaural' })).toMatch(/监听方式：双耳/);
 
-  const objs = await claude.call('export_spatial', { format: 'objects', mode: 'pattern', pattern: 'Strings', loops: 1 });
+  const objs = await claude.call('export_spatial', { format: 'objects', mode: 'pattern', pattern: '弦乐', loops: 1 });
   expect(objs).toMatch(/E2E_Atmos_Band-bed\.wav/);
-  expect(objs).toMatch(/obj\d\d-Strings\.wav/);
+  expect(objs).toMatch(/obj\d\d-\.wav/); // 服务端 safeFileName 会剥掉文件名里的中文（\w 不含 CJK）
   const positions = JSON.parse(Buffer.from(await fetchWav(objs, 'json')).toString('utf8'));
-  expect(positions.objects.map((o) => o.name).sort()).toEqual(['Guitar', 'Piano', 'Strings']);
+  expect(positions.objects.map((o) => o.name).sort()).toEqual(['吉他', '弦乐', '钢琴']);
 
   const adm = await claude.call('export_spatial', { format: 'adm' });
-  expect(adm).toMatch(/ADM BWF is experimental/);
+  expect(adm).toMatch(/ADM BWF 还是实验性/);
   const bytes = await fetchWav(adm);
   const ids = chunkIds(bytes);
   expect(ids.map(([id]) => id)).toEqual(['fmt ', 'bext', 'chna', 'axml', 'data']);
   const [, at, size] = ids.find(([id]) => id === 'axml');
   const xml = Buffer.from(bytes.subarray(at, at + size)).toString('utf8');
-  expect(xml).toMatch(/audioObjectName="Strings"/);
+  expect(xml).toMatch(/audioObjectName="弦乐"/);
   // the circling strings have many timed blocks, the static guitar one
   const blocksOf = (name) => {
     const ch = xml.split('<audioChannelFormat ').find((c) => c.includes(`audioChannelFormatName="${name}"`));
     return (ch.match(/<audioBlockFormat /g) || []).length;
   };
-  expect(blocksOf('Strings')).toBeGreaterThan(8);
-  expect(blocksOf('Guitar')).toBe(1);
+  expect(blocksOf('弦乐')).toBeGreaterThan(8);
+  expect(blocksOf('吉他')).toBe(1);
   expect(decodeWav(bytes).channels.length).toBe(2 + 3);
 });
 
 test('the Spatial window shows the objects and dragging one moves it', async () => {
-  await page.locator('.tbtn.win[title^="Spatial mixer"]').click();
+  await page.locator('.tbtn.logo').click();
+  await menuItem(page, '空间混音台（3D／全景声）');
   const win = page.locator('.window.spatial');
   await expect(win).toBeVisible();
-  await expect(win.locator('.toggle', { hasText: '3D ON' })).toBeVisible();
+  await expect(win.locator('.toggle', { hasText: '三维 开' })).toBeVisible();
   const state = () => page.evaluate(() => window.greanteadawy.store.getState().project);
   const p = await state();
-  const guitar = p.mixer.findIndex((m) => m.name === 'Guitar');
+  const guitar = p.mixer.findIndex((m) => m.name === '吉他');
   const dot = win.getByTestId(`obj-${guitar}`);
   await expect(dot).toBeVisible();
   const room = await win.locator('svg.room').boundingBox();
@@ -143,7 +145,7 @@ test('binaural monitoring plays live through HRTF panners', async () => {
     const { store } = window.greanteadawy;
     const eng = await store.getState().unlockAudio();
     const p = store.getState().project;
-    const ch = p.channels.find((c) => c.name === 'Strings');
+    const ch = p.channels.find((c) => c.name === '弦乐');
     const v = eng.noteOn(ch.id, 67, 0.8);
     await new Promise((res) => setTimeout(res, 100));
     v?.release(eng.ctx.currentTime + 0.05);

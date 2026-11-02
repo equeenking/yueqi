@@ -1,7 +1,7 @@
 // Edge cases in the browser: dialogs, drag & drop, deleted projects, touch layout.
 // Runs after studio.spec.js (alphabetical), so the admin account already exists.
 import { test, expect } from '@playwright/test';
-import { ADMIN, makeWav, menuItem } from './helpers.js';
+import { ADMIN, dismissWelcome, makeWav, menuItem } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -26,6 +26,7 @@ test.beforeAll(async ({ browser }) => {
   page = await browser.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
   await signIn(page);
+  await dismissWelcome(page);
 });
 test.afterAll(async () => page?.close());
 
@@ -33,10 +34,10 @@ test('Enter on a focused Cancel button cancels a destructive dialog', async () =
   const before = await page.locator('.ch-row').count();
   const row = page.locator('.ch-row').first();
   await row.locator('.ch-name').click({ button: 'right' });
-  await menuItem(page, 'Delete');
+  await menuItem(page, '删除');
   const modal = page.locator('.modal');
   if (await modal.isVisible().catch(() => false)) {
-    await modal.getByRole('button', { name: 'Cancel' }).focus();
+    await modal.getByRole('button', { name: '取消' }).focus();
     await page.keyboard.press('Enter');
     await expect(modal).toBeHidden();
     await expect(page.locator('.ch-row')).toHaveCount(before);
@@ -46,24 +47,24 @@ test('Enter on a focused Cancel button cancels a destructive dialog', async () =
     await expect(page.locator('.ch-row')).toHaveCount(before);
   }
   // project delete always confirms
-  await page.getByRole('tab', { name: 'Projects' }).click();
+  await page.getByRole('tab', { name: '我的乐曲' }).click();
   await page.locator('.br-new .btn.primary').click();
   await page.locator('.modal input').fill('Throwaway');
   await page.locator('.modal input').press('Enter'); // Enter in the text field confirms
   await expect(page).toHaveTitle(/Throwaway/);
-  const item = page.locator('.br-item.project', { hasText: 'Throwaway' });
+  const item = page.locator('.prj-card', { hasText: 'Throwaway' });
   await item.click({ button: 'right' });
-  await menuItem(page, 'Delete');
-  await page.locator('.modal').getByRole('button', { name: 'Cancel' }).focus();
+  await menuItem(page, '删除');
+  await page.locator('.modal').getByRole('button', { name: '取消' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('.modal')).toBeHidden();
   await expect(item).toBeVisible();
 });
 
 test('dragging an instrument from the browser onto the channel rack adds a channel', async () => {
-  await page.getByRole('tab', { name: 'Sounds' }).click();
+  await page.getByRole('tab', { name: '声音' }).click();
   const before = await page.locator('.ch-row').count();
-  const source = page.locator('.br-item', { hasText: 'Cowbell' }).first();
+  const source = page.locator('.inst-tile', { hasText: '牛铃' }).first();
   await source.dragTo(page.locator('.channel-rack'));
   await expect(page.locator('.ch-row')).toHaveCount(before + 1);
 });
@@ -96,10 +97,11 @@ test('phone layout: one-finger drag scrolls the piano roll instead of drawing', 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const phone = await ctx.newPage();
   await signIn(phone);
+  await dismissWelcome(phone); // 新 context 的 localStorage 是空的，欢迎弹窗会再弹一次
   // nothing makes the page scroll sideways (the toolbar fits a 390 px screen)
   await expect(phone.locator('.toolbar')).toBeVisible();
   expect(await phone.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  await phone.locator('.tabbar button', { hasText: 'Piano' }).click();
+  await phone.locator('.tabbar button', { hasText: '钢琴卷帘' }).click();
   const grid = phone.locator('.pr-grid');
   await expect(grid).toBeVisible();
   const count = () => phone.evaluate(() => {
@@ -141,10 +143,10 @@ test('nested submenus work: add a channel preset from + Channel', async () => {
   const before = await page.locator('.ch-row').count();
   await rack.locator('.add-channel').click();
   // collection → instrument → preset
-  await page.locator('.context-menu .cm-item', { hasText: 'Drums' }).first().hover();
+  await page.locator('.context-menu .cm-item', { hasText: '鼓组' }).first().hover();
   const sub = page.locator('.cm-sub').first();
   await expect(sub).toBeVisible();
-  await sub.locator('.cm-item', { hasText: 'Kick' }).first().hover(); // moving into the submenu keeps it open
+  await sub.locator('.cm-item', { hasText: '底鼓' }).first().hover(); // moving into the submenu keeps it open
   const presets = sub.locator('.cm-sub').first();
   await expect(presets).toBeVisible();
   await presets.locator('.cm-item').nth(1).hover();
@@ -208,7 +210,7 @@ test('each click is its own undo step', async () => {
 
 test('prompts start with their text selected; Escape cancels from anywhere', async () => {
   await page.locator('.tbtn.logo').click();
-  await page.locator('.context-menu .cm-item', { hasText: 'Rename project' }).click();
+  await page.locator('.context-menu .cm-item', { hasText: '重命名项目…' }).click();
   const input = page.locator('.modal input');
   await expect(input).toBeFocused();
   const sel = await input.evaluate((el) => [el.selectionStart, el.selectionEnd, el.value.length]);
@@ -220,12 +222,12 @@ test('prompts start with their text selected; Escape cancels from anywhere', asy
 });
 
 test('a sampler channel made from a one-shot uses its detected pitch', async () => {
-  await page.getByRole('tab', { name: 'Samples' }).click();
+  await page.getByRole('tab', { name: '采样' }).click();
   await page.getByTestId('sample-file-input').setInputFiles({ name: 'tone-a3.wav', mimeType: 'audio/wav', buffer: makeWav({ freq: 220, seconds: 0.5 }) });
   const row = page.locator('.br-item.sample', { hasText: 'tone-a3' });
   await expect(row).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().samples.find((s) => s.name === 'tone-a3')?.analysis?.pitch?.midi)).toBe(57);
-  await row.locator('.br-add[title="Add as sampler channel"]').click();
+  await row.locator('.br-add[title="添加为采样器通道"]').click();
   await expect.poll(() => page.evaluate(() => window.greanteadawy.store.getState().project.channels.find((c) => c.name === 'tone-a3')?.instrument.params.rootKey)).toBe(57);
 });
 
@@ -236,7 +238,7 @@ async function box(loc) {
 }
 
 test('selecting a playlist clip or a long note keeps its size (the select tool, then double-click to edit)', async () => {
-  await page.getByRole('tab', { name: 'Projects' }).click();
+  await page.getByRole('tab', { name: '我的乐曲' }).click();
   await page.locator('.br-new .btn.primary').click();
   await page.locator('.modal input').fill('Selection Sizes');
   await page.locator('.modal input').press('Enter');
@@ -259,16 +261,16 @@ test('selecting a playlist clip or a long note keeps its size (the select tool, 
     return { pat: pat.id, ch: ch.id };
   });
   const pl = page.locator('[data-window="playlist"]');
-  await pl.getByRole('button', { name: /^Select \(box\)/ }).click();
+  await pl.getByRole('button', { name: /^选择（框选）/ }).click();
   const clip = pl.locator('.clip').first();
   const before = await box(clip);
   expect(before.w).toBeGreaterThan(250); // 4 bars at the default zoom
   await page.mouse.click(before.x + before.w / 2, before.y + before.h / 2);
   await expect(clip).toHaveClass(/\bsel\b/);
   expect(await box(clip)).toEqual(before); // was capped at 180 px by the dropdown's .sel style
-  // double-click: the pattern opens in the channel rack, the clip stays as it was
+  // double-click: the pattern opens in the piano roll, the clip stays as it was
   await page.mouse.dblclick(before.x + before.w / 2, before.y + before.h / 2);
-  await expect(page.locator('[data-window="channelRack"]')).toBeVisible();
+  await expect(page.locator('[data-window="pianoRoll"]')).toBeVisible();
   expect(await page.evaluate(() => window.greanteadawy.store.getState().selectedPatternId)).toBe(ids.pat);
   expect(await box(clip)).toEqual(before);
   expect(await page.evaluate(() => window.greanteadawy.store.getState().project.playlist.clips.map((c) => c.length))).toEqual([1536]);
@@ -327,10 +329,10 @@ test('windows move by the empty middle of their title bar; title-bar controls ke
   await page.evaluate(() => window.greanteadawy.store.getState().openWindow('playlist'));
   const pl = page.locator('[data-window="playlist"]');
   const plBefore = await box(pl);
-  await pl.getByRole('button', { name: /^Erase/ }).click();
-  await expect(pl.getByRole('button', { name: /^Erase/ })).toHaveClass(/active/);
+  await pl.getByRole('button', { name: /^擦除/ }).click();
+  await expect(pl.getByRole('button', { name: /^擦除/ })).toHaveClass(/active/);
   expect(await box(pl)).toEqual(plBefore);
-  await pl.getByRole('button', { name: /^Draw/ }).click();
+  await pl.getByRole('button', { name: /^绘制/ }).click();
 });
 
 test('no uncaught page errors', async () => {
