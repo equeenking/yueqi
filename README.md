@@ -302,6 +302,32 @@ CC0-1.0（公有领域贡献）意味着这些录音可以自由用于任何用�
 录音经重采样、音区校准与响度归一后打包进 `client/public/samples/`；清单见
 [client/public/samples/manifest.json](client/public/samples/manifest.json)，每件乐器的 `source` 字段记录其出处。
 
+## 重建采样库
+
+仓库体积所限，约 230 MB 的 WAV 采样 **未进入版本库**（`client/public/samples/` 在 `.gitignore` 中）。
+新 clone 下来的仓库**没有**这些真实录音——应用会回退到合成音色（合成引擎零依赖，开箱即用）。
+下面的脚本可以从三个 CC0 来源重建完整的采样库：
+
+**前置依赖**：Python 3.10+、`pip install numpy soundfile requests`、Git LFS（可选）。
+
+```bash
+# 第 1 步：从 GitHub 下载公共领域录音到 assets/real/<kind>/
+python scripts/fetch_freepats.py    # FreePats：电贝斯、钢琴、吉他、尤克里里、管钟、架子鼓、定音鼓、手碟、电吉他、打击乐
+python scripts/fetch_vsco.py        # VSCO-2-CE：长笛、双簧管、单簧管、巴松、圆号、小提琴（管弦乐）
+# 民乐（古筝/二胡/箫/唢呐/埙/木鱼/锣）：手动从 Freesound / SFZ Instruments 下载 CC0 录音，
+#        放进 assets/real/<kind>/，文件名随意——build_samples.py 会自动识别音高。
+
+# 第 2 步：分析每个录音的真实基频、重采样到 44.1 kHz、拷贝到 client/public/samples/<kind>/、写 manifest
+python scripts/build_samples.py --copy
+
+# 第 3 步（可选）：校验 manifest 里的每条 notes 都引用了真实文件
+python scripts/validate_manifest.py
+```
+
+重建完成后，刷新浏览器即可加载真实采样。以后若想扩展乐器（加一个新的 FreePats 仓库、
+或一件新的民乐），只需在 `scripts/fetch_freepats.py` 的 `INSTRUMENTS` 字典里加一行、
+在 `packages/core/src/instruments.js` 注册 kind + preset，然后重跑 `build_samples.py`。
+
 ## Licence
 
 [MIT](LICENSE) © GreanTeaDawy contributors.

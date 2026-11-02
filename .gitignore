@@ -29,8 +29,10 @@ scripts/backup2/
 scripts/*.txt
 scripts/*.json
 
-# One-off debug / test scripts (root and e2e)
-*.py
+# One-off debug / test scripts (repo root only)
+/*.py
+scripts/zh_*.py
+scripts/scan_*.py
 *.wav
 start.mjs
 e2e/tmp-agnes-test.mjs
