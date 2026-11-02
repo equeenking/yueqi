@@ -19,9 +19,9 @@ export class ErrorBoundary extends Component {
     if (!this.state.error) return this.props.children;
     return (
       <div className="panel-error" role="alert">
-        <b>{this.props.name || 'This panel'} hit an error.</b>
+        <b>{this.props.name || '此面板'} hit an error.</b>
         <span>{String(this.state.error.message || this.state.error)}</span>
-        <button className="btn tiny" onClick={() => this.setState({ error: null })}>Try again</button>
+        <button className="btn tiny" onClick={() => this.setState({ error: null })}>重试</button>
       </div>
     );
   }

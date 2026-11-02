@@ -39,7 +39,7 @@ function Param({ def, value, onChange, color, samples, onSamplePick, onSampleEdi
   if (def.type === 'select') {
     return (
       <label className="param-select">
-        <Select value={value ?? def.default} options={def.options} onChange={(v) => onChange(def.key, v)} />
+        <Select value={value ?? def.default} options={def.options.map((o, i) => ({ value: o, label: def.optionLabels?.[i] ?? o }))} onChange={(v) => onChange(def.key, v)} />
         <span>{def.label}</span>
       </label>
     );
@@ -47,7 +47,7 @@ function Param({ def, value, onChange, color, samples, onSamplePick, onSampleEdi
   if (def.type === 'bool') {
     return (
       <label className="param-bool">
-        <button className={`toggle ${value ? 'on' : ''}`} onClick={() => onChange(def.key, !value)} aria-pressed={!!value}>{value ? 'ON' : 'OFF'}</button>
+        <button className={`toggle ${value ? 'on' : ''}`} onClick={() => onChange(def.key, !value)} aria-pressed={!!value}>{value ? '开' : '关'}</button>
         <span>{def.label}</span>
       </label>
     );
@@ -57,7 +57,7 @@ function Param({ def, value, onChange, color, samples, onSamplePick, onSampleEdi
     return (
       <label className="param-select" title={def.description}>
         <Select value={value || ''} onChange={(v) => onChange(def.key, v || null)}
-          options={[{ value: '', label: '— none —' }, ...(channels || []).map((c) => ({ value: c.id, label: c.name })), ...(missing ? [{ value, label: '(deleted channel)' }] : [])]} />
+          options={[{ value: '', label: '— none —' }, ...(channels || []).map((c) => ({ value: c.id, label: c.name })), ...(missing ? [{ value, label: '（已删除的通道）' }] : [])]} />
         <span>{def.label}</span>
       </label>
     );
@@ -67,8 +67,8 @@ function Param({ def, value, onChange, color, samples, onSamplePick, onSampleEdi
       <label className="param-sample">
         <Select value={value || ''} options={[{ value: '', label: '— choose sample —' }, ...(samples || []).map((s) => ({ value: s.id, label: s.name, group: s.group }))]}
           onChange={(v) => onChange(def.key, v || null)} />
-        {onSamplePick && <button className="btn tiny" onClick={onSamplePick} title="Upload a sample" aria-label="Upload a sample"><Icon name="upload" size={12} /></button>}
-        {onSampleEdit && value && <button className="btn tiny" onClick={() => onSampleEdit(value)} title="Edit this sample in the wave editor" aria-label="Edit sample"><Icon name="edit" size={12} /></button>}
+        {onSamplePick && <button className="btn tiny" onClick={onSamplePick} title="上传采样" aria-label="上传采样"><Icon name="upload" size={12} /></button>}
+        {onSampleEdit && value && <button className="btn tiny" onClick={() => onSampleEdit(value)} title="在波形编辑器中编辑此采样" aria-label="编辑采样"><Icon name="edit" size={12} /></button>}
         <span>{def.label}</span>
       </label>
     );

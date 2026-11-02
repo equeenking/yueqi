@@ -34,7 +34,7 @@ export function Fader({ value, max = 1.25, def = 0.8, onChange, height = 120, ti
   };
   return (
     <div className="fader" style={{ height }} title={title || `${db} dB`} role="slider" tabIndex={0}
-      aria-label={title || 'Volume'} aria-orientation="vertical" aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${db} dB`}
+      aria-label={title || '音量'} aria-orientation="vertical" aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={`${db} dB`}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null; }}
       onDoubleClick={() => onChange?.(def)}
@@ -76,7 +76,7 @@ export function DragNumber({ value, min, max, step = 1, onChange, format = (v) =
     );
   }
   return (
-    <div className={`dragnum ${className}`} title={title || 'Drag up/down or double-click to type'} data-nodrag
+    <div className={`dragnum ${className}`} title={title || '上下拖动，或双击输入'} data-nodrag
       role="spinbutton" tabIndex={0} aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}
       onKeyDown={(e) => {
         const d = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step }[e.key];

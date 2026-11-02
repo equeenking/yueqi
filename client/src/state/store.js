@@ -27,7 +27,7 @@ function saveUiPrefs(state) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       windows: state.windows, snap: state.snap, followClaude: state.followClaude, metronome: state.metronome,
-      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize
+      browserOpen: state.browserOpen, kbOctave: state.kbOctave, recordQuantize: state.recordQuantize, welcomeSeen: state.welcomeSeen
     }));
   } catch { /* storage unavailable */ }
 }
@@ -47,6 +47,7 @@ export function defaultWindows(w = window.innerWidth, h = window.innerHeight) {
     versions: { open: false, x: Math.max(10, W - 560), y: 40, w: Math.min(W - 20, 520), h: 380, z: 6, max: false },
     spatial: { open: false, x: Math.max(10, W - 700), y: 50, w: Math.min(W - 20, 660), h: Math.min(H - 60, 470), z: 5, max: false },
     generate: { open: false, x: Math.max(10, W - 520), y: 80, w: Math.min(W - 20, 460), h: Math.min(H - 80, 420), z: 5, max: false },
+    play: { open: false, x: Math.max(10, W - 560), y: 50, w: Math.min(W - 20, 540), h: Math.min(H - 60, 640), z: 5, max: false },
     waveEditor: { open: false, x: 40, y: 40, w: Math.min(W - 60, 980), h: Math.min(H - 60, 540), z: 6, max: false },
     recorder: { open: false, x: Math.max(10, W - 480), y: 60, w: Math.min(W - 20, 440), h: Math.min(H - 70, 470), z: 6, max: false }
   };
@@ -73,13 +74,13 @@ for (const k of ['waveEditor', 'recorder']) initialWindows[k] = { ...initialWind
 
 export const useStore = create((set, get) => ({
   // ---- auth
-  auth: { phase: 'loading', user: null, allowRegistration: false, mcpWithoutToken: false, error: null },
+  auth: { phase: 'loading', user: null, allowRegistration: false, mcpWithoutToken: false, authDisabled: false, error: null },
 
   // ---- server data
   connected: false,
   projects: [],
   samples: [],
-  sampleFolders: [], // [{ id, name, count }] A–Z; samples without a folder are "Unfiled"
+  sampleFolders: [], // [{ id, name, count }] A–Z; samples without a folder are "未归档"
   editSampleId: null, // the sample open in the wave editor
   editTab: 'wave', // wave editor view: 'wave' | 'pitch'
   editorDirty: false, // the wave editor has unsaved changes
@@ -121,6 +122,8 @@ export const useStore = create((set, get) => ({
   followClaude: prefs.followClaude ?? true,
   kbOctave: prefs.kbOctave ?? 4,
   recordQuantize: prefs.recordQuantize ?? true,
+  welcomeSeen: !!prefs.welcomeSeen, // 新手欢迎页只在第一次进工作台时自动弹出
+  welcomeOpen: false,
   toasts: [],
   activity: [],
   contextMenu: null,
@@ -141,8 +144,18 @@ export const useStore = create((set, get) => ({
   async initAuth() {
     try {
       const st = await api.authStatus();
-      if (st.user) get().startSession(st.user, st);
-      else set({ auth: { phase: st.setupRequired ? 'setup' : 'login', user: null, allowRegistration: st.allowRegistration, mcpWithoutToken: st.mcpWithoutToken, setupCodeRequired: !!st.setupCodeRequired, error: null } });
+      if (st.user) { get().startSession(st.user, st); return; }
+      // 开放模式（DISABLE_AUTH=1）：服务端不返回匿名用户时，直接用已知的开放账号静默登录，
+      // 从而“访问即进工作台、跳过登录页”，并让工程/设置等接口拿到真实会话。
+      // 仅用于临时演示；关闭 DISABLE_AUTH 后本分支自动失效，恢复账号登录。
+      if (st.authDisabled) {
+        try {
+          await api.login({ username: 'teacher', password: 'music2026' });
+          const st2 = await api.authStatus();
+          if (st2.user) { get().startSession(st2.user, st2); return; }
+        } catch { /* 开放账号登录失败则退回登录页 */ }
+      }
+      set({ auth: { phase: st.setupRequired ? 'setup' : 'login', user: null, allowRegistration: st.allowRegistration, mcpWithoutToken: st.mcpWithoutToken, authDisabled: !!st.authDisabled, setupCodeRequired: !!st.setupCodeRequired, error: null } });
     } catch (e) {
       set({ auth: { ...get().auth, phase: 'offline', error: e.message } });
       setTimeout(() => get().initAuth(), 3000);
@@ -150,7 +163,7 @@ export const useStore = create((set, get) => ({
   },
 
   startSession(user, status = {}) {
-    set({ auth: { phase: 'ready', user, allowRegistration: !!status.allowRegistration, mcpWithoutToken: !!status.mcpWithoutToken, error: null } });
+    set({ auth: { phase: 'ready', user, allowRegistration: !!status.allowRegistration, mcpWithoutToken: !!status.mcpWithoutToken, authDisabled: !!status.authDisabled, error: null } });
     sync.start(useStore);
     get().loadExportFormats();
     get().loadPlugins();
@@ -169,7 +182,7 @@ export const useStore = create((set, get) => ({
         onPluginError: (id, message) => {
           const prev = get().pluginErrors[id];
           set((s) => ({ pluginErrors: { ...s.pluginErrors, [id]: message } }));
-          if (prev !== message) get().toast(`Plugin ${id}: ${message}`, 'error');
+          if (prev !== message) get().toast(`插件 ${id}：${message}`, 'error');
         }
       });
       set({ plugins });
@@ -221,13 +234,13 @@ export const useStore = create((set, get) => ({
   async signOut() {
     // audio that only this page holds: unsaved or saving editor work, a take being recorded or one that couldn't be saved
     const s0 = get();
-    const name = s0.samples.find((x) => x.id === s0.editSampleId)?.name || 'the open sample';
+    const name = s0.samples.find((x) => x.id === s0.editSampleId)?.name || '当前打开的采样';
     const lose = [
       s0.editorSaving ? `The wave editor is still saving "${name}": signing out now can lose it.` : '',
       s0.editorDirty && s0.windows.waveEditor?.open && !s0.editorSaving ? `Your changes to "${name}" in the wave editor have not been saved.` : '',
       s0.recorderBusy ? 'The recorder has a take that is being recorded, saved, or could not be saved yet.' : ''
     ].filter(Boolean);
-    if (lose.length && !(await s0.confirm({ title: 'Sign out?', message: lose.join('\n\n'), danger: true, okLabel: 'Sign out' }))) return;
+    if (lose.length && !(await s0.confirm({ title: 'Sign out?', message: lose.join('\n\n'), danger: true, okLabel: '退出登录' }))) return;
     // stop live sync first: the server closes our socket on logout, which must not look like a lost session
     sync.stop();
     try { await api.logout(); } catch { /* already gone */ }
@@ -440,6 +453,18 @@ export const useStore = create((set, get) => ({
     saveUiPrefs(get());
   },
 
+  /** 新手欢迎页：从未看过则自动弹出一次；工具栏的「新手指南」按钮随时可再打开。 */
+  maybeShowWelcome() {
+    if (!get().welcomeSeen) set({ welcomeOpen: true });
+  },
+  showWelcome() {
+    set({ welcomeOpen: true });
+  },
+  dismissWelcome() {
+    set({ welcomeOpen: false, welcomeSeen: true });
+    saveUiPrefs(get());
+  },
+
   openPianoRoll(channelId) {
     set({ pianoRollChannelId: channelId, selectedChannelId: channelId });
     get().openWindow('pianoRoll');
@@ -474,12 +499,12 @@ export const useStore = create((set, get) => ({
   prompt({ title, value = '', label = '', placeholder = '' }) {
     return get().openModal({ kind: 'prompt', title, value, label, placeholder });
   },
-  confirm({ title, message, danger = false, okLabel = 'OK' }) {
+  confirm({ title, message, danger = false, okLabel = '确定' }) {
     return get().openModal({ kind: 'confirm', title, message, danger, okLabel });
   },
   /** The About dialog: app name, version and the server's version. Resolves when it closes. */
   showAbout() {
-    return get().openModal({ kind: 'about', title: `About ${APP_NAME}` });
+    return get().openModal({ kind: 'about', title: `关于 ${APP_NAME}` });
   },
 
   // ---------------------------------------------------------------- transport
@@ -500,7 +525,7 @@ export const useStore = create((set, get) => ({
     const eng = await ensureEngine();
     if (eng.ctx.state !== 'running') {
       set({ pendingPlay: opts, audioReady: false });
-      s.toast('Click anywhere to enable audio', 'warn');
+      s.toast('点击任意位置以启用声音', 'warn');
       return;
     }
     if (opts.mode && opts.mode !== s.mode) set({ mode: opts.mode });
@@ -578,7 +603,7 @@ export const useStore = create((set, get) => ({
   // ---------------------------------------------------------------- live notes & recording
   heldNotes: new Map(),
 
-  liveNoteOn(key, velocity = 0.8, channelId = null) {
+  liveNoteOn(key, velocity = 0.8, channelId = null, at = null) {
     const s = get();
     const cid = channelId || s.selectedChannelId;
     if (!cid || !s.project) return;
@@ -590,12 +615,25 @@ export const useStore = create((set, get) => ({
     const start = () => {
       const eng = getEngine();
       if (!eng || h.released || get().heldNotes.get(id) !== h) return;
-      h.voice = eng.noteOn(cid, key, velocity);
+      h.voice = eng.noteOn(cid, key, velocity, at);
       h.t0 = eng.ctx.currentTime;
       if (get().recording && get().playing) h.recTick = get().currentPatternTick();
     };
     if (getEngine()?.ctx.state === 'running') start();
     else get().unlockAudio().then(start);
+  },
+
+  /**
+   * One scheduled note for the arpeggiator / autoplay: sounds at the AudioContext time `at` and ends by itself
+   * after `duration` seconds (self-ending — no heldNotes, no recording; callers schedule with a lookahead).
+   */
+  arpNote(key, velocity = 0.8, channelId = null, at = null, duration = 0.4) {
+    const s = get();
+    const cid = channelId || s.selectedChannelId;
+    const eng = getEngine();
+    if (!cid || !eng || eng.ctx.state !== 'running' || at == null) return;
+    eng.setProject(s.project);
+    eng.arpNote(cid, key, velocity, at, duration);
   },
 
   liveNoteOff(key, channelId = null) {

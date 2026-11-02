@@ -8,6 +8,7 @@ import { uploadSamples, addSamplerChannel, openSampleEditor } from '../lib/actio
 import { analyzeSampleInBrowser } from '../lib/jobs.js';
 import { getEngine } from '../audio/index.js';
 import { DND_SAMPLE } from '../lib/dnd.js';
+import { longPressProps } from '../lib/touch.js';
 
 const AUDIO_ACCEPT = 'audio/*,.wav,.mp3,.ogg,.opus,.flac,.aif,.aiff,.m4a,.aac,.webm';
 const COLLAPSED_KEY = 'gtd.sampleFolders.collapsed';
@@ -49,8 +50,8 @@ export async function deleteSamplesWithWarning(list) {
   const note = editing ? `\n\n"${editing.name}" is open in the wave editor with edits: the editor keeps that audio, so you can still save it as a new sample.` : '';
   const message = (used.length
     ? `Still in use — these sampler channels and audio clips will go silent:\n${used.map((s) => `• ${list.length > 1 ? `${s.name}: ` : ''}${usageText(usage[s.id])}`).join('\n')}\n\nThis cannot be undone.`
-    : 'This cannot be undone.') + note;
-  if (!(await st.confirm({ title, message, danger: true, okLabel: 'Delete' }))) return false;
+    : '此操作无法撤销。') + note;
+  if (!(await st.confirm({ title, message, danger: true, okLabel: '删除' }))) return false;
   if (list.length === 1) await api.deleteSample(list[0].id);
   else await api.deleteSamples(list.map((s) => s.id));
   // an editor showing a deleted sample closes only when it holds nothing of its own: edits (or a save that was running)
@@ -64,7 +65,7 @@ export async function deleteSamplesWithWarning(list) {
 
 export async function newSampleFolder() {
   const st = useStore.getState();
-  const name = await st.prompt({ title: 'New folder', placeholder: 'e.g. Drums, Vocals, Loops' });
+  const name = await st.prompt({ title: '新建文件夹', placeholder: '例如：鼓、人声、循环' });
   if (!name?.trim()) return null;
   const f = await api.createSampleFolder(name);
   await st.refreshSamples();
@@ -99,11 +100,11 @@ function SampleDetails({ s }) {
             {a.tempo && a.tempo.confidence >= 0.35 && <span>{a.tempo.bpm} BPM</span>}
             {a.key && a.key.confidence > 0.5 && <span>{a.key.key} {a.key.scale}</span>}
           </div>
-          <div className="bands" title="Spectral balance: sub · low · low-mid · mid · high-mid · high">
+          <div className="bands" title="频谱平衡：超低 · 低 · 中低 · 中 · 中高 · 高">
             {Object.entries(a.spectrum?.bandsPercent || {}).map(([k, v]) => <i key={k} style={{ flexGrow: Math.max(0.5, v) }} className={`band-${k}`} />)}
           </div>
         </>
-      ) : <div className="muted">Not analysed yet.</div>}
+      ) : <div className="muted">尚未分析。</div>}
     </div>
   );
 }
@@ -129,11 +130,11 @@ export function SampleLibrary() {
     ...folders.map((f) => ({ key: f.id, folder: f, name: f.name, items: visible.filter((s) => s.folderId === f.id) })),
     { key: '', folder: null, name: 'Unfiled', items: visible.filter((s) => !byId.has(s.folderId)) }
   ].filter((g) => (words.length ? g.items.length : g.folder || g.items.length || folders.length));
-  const flat = !folders.length; // no folders yet: a plain list, no "Unfiled" header
+  const flat = !folders.length; // no folders yet: a plain list, no "未归档" header
   // the selection, without samples deleted meanwhile (here, in another tab or by Claude)
   const selectedList = samples.filter((s) => selected.has(s.id));
   const selectedIds = selectedList.map((s) => s.id);
-  // what "All" selects: the rows that are visible (open folders, the current search)
+  // what "全部" selects: the rows that are visible (open folders, the current search)
   const visibleRows = flat ? visible : groups.filter((g) => words.length > 0 || !collapsed.has(g.key)).flatMap((g) => g.items);
 
   const toggleCollapsed = (key) => setCollapsed((c) => {
@@ -153,7 +154,7 @@ export function SampleLibrary() {
   const onFiles = (files, folderId = null) => {
     const list = [...files];
     const ok = list.filter((f) => /^audio\//.test(f.type) || /\.(wav|mp3|ogg|opus|flac|aiff?|m4a|aac|webm)$/i.test(f.name));
-    if (ok.length < list.length) st.toast(`Skipped ${list.length - ok.length} file(s) that aren't audio`, 'warn');
+    if (ok.length < list.length) st.toast(`跳过 ${list.length - ok.length} 个不是音频的文件`, 'warn');
     if (ok.length) uploadSamples(ok, { folderId });
   };
   const pickFiles = (folderId = null) => { uploadTo.current = folderId; fileRef.current?.click(); };
@@ -161,43 +162,43 @@ export function SampleLibrary() {
     await api.moveSamples(ids, folderId);
     await st.refreshSamples();
     if (folderId && collapsed.has(folderId)) toggleCollapsed(folderId);
-    st.toast(`Moved ${ids.length === 1 ? samples.find((s) => s.id === ids[0])?.name || '1 sample' : `${ids.length} samples`} to ${folderId ? byId.get(folderId)?.name || 'folder' : 'Unfiled'}`, 'success', 1400);
+    st.toast(`Moved ${ids.length === 1 ? samples.find((s) => s.id === ids[0])?.name || '1 sample' : `${ids.length} samples`} to ${folderId ? byId.get(folderId)?.name || 'folder' : '未归档'}`, 'success', 1400);
   });
   const moveMenu = (ids, current) => [
-    { label: 'Unfiled', checked: current === undefined ? undefined : current === '', onClick: () => move(ids, null) },
+    { label: '未归档', checked: current === undefined ? undefined : current === '', onClick: () => move(ids, null) },
     ...folders.map((f) => ({ label: f.name, checked: current === undefined ? undefined : current === f.id, onClick: () => move(ids, f.id) })),
     '-',
-    { label: 'New folder…', onClick: () => guard(async () => { const f = await newSampleFolder(); if (f) move(ids, f.id); }) }
+    { label: '新建文件夹…', onClick: () => guard(async () => { const f = await newSampleFolder(); if (f) move(ids, f.id); }) }
   ];
   const analyze = (s) => guard(async () => {
-    st.toast(`Analysing ${s.name}…`, 'info', 1500);
+    st.toast(`正在分析「${s.name}」的音高…`, 'info', 1500);
     await analyzeSampleInBrowser(s.id);
     await st.refreshSamples();
   });
   const rename = (s) => guard(async () => {
-    const name = await st.prompt({ title: 'Rename sample', value: s.name });
+    const name = await st.prompt({ title: '重命名采样', value: s.name });
     if (name?.trim()) { await api.updateSample(s.id, { name }); await st.refreshSamples(); }
   });
   const sampleMenu = (s) => [
-    { label: 'Add as sampler channel', onClick: () => addSamplerChannel(s) },
-    { label: 'Edit in wave editor', onClick: () => openSampleEditor(s.id) },
-    { label: 'Move to folder', submenu: moveMenu([s.id], folderKey(s)) },
-    { label: 'Rename…', onClick: () => rename(s) },
+    { label: '添加为采样器通道', onClick: () => addSamplerChannel(s) },
+    { label: '在波形编辑器中编辑', onClick: () => openSampleEditor(s.id) },
+    { label: '移动到文件夹', submenu: moveMenu([s.id], folderKey(s)) },
+    { label: '重命名…', onClick: () => rename(s) },
     '-',
-    { label: openId === s.id ? 'Hide details' : 'Show details', onClick: () => setOpenId(openId === s.id ? null : s.id) },
-    { label: 'Analyse again', onClick: () => analyze(s) },
+    { label: openId === s.id ? '隐藏详情' : '显示详情', onClick: () => setOpenId(openId === s.id ? null : s.id) },
+    { label: '重新分析', onClick: () => analyze(s) },
     '-',
-    { label: 'Delete…', danger: true, onClick: () => guard(() => deleteSamplesWithWarning([s])) }
+    { label: '删除…', danger: true, onClick: () => guard(() => deleteSamplesWithWarning([s])) }
   ];
   const folderMenu = (f) => [
-    { label: 'Upload into this folder…', onClick: () => pickFiles(f.id) },
-    { label: 'Rename folder…', onClick: () => guard(async () => {
-      const name = await st.prompt({ title: 'Rename folder', value: f.name });
+    { label: '上传到此文件夹…', onClick: () => pickFiles(f.id) },
+    { label: '重命名文件夹…', onClick: () => guard(async () => {
+      const name = await st.prompt({ title: '重命名文件夹', value: f.name });
       if (name?.trim() && name.trim() !== f.name) { await api.renameSampleFolder(f.id, name); await st.refreshSamples(); }
     }) },
-    { label: 'Delete folder…', danger: true, onClick: () => guard(async () => {
+    { label: '删除文件夹…', danger: true, onClick: () => guard(async () => {
       const n = samples.filter((s) => s.folderId === f.id).length;
-      const ok = await st.confirm({ title: `Delete folder "${f.name}"?`, message: n ? `Its ${n} sample${n === 1 ? '' : 's'} will be kept and moved to Unfiled.` : 'The folder is empty.', danger: true, okLabel: 'Delete folder' });
+      const ok = await st.confirm({ title: `Delete folder "${f.name}"?`, message: n ? `Its ${n} sample${n === 1 ? '' : 's'} will be kept and moved to Unfiled.` : '这个文件夹是空的。', danger: true, okLabel: '删除文件夹' });
       if (ok) { await api.deleteSampleFolder(f.id); await st.refreshSamples(); }
     }) }
   ];
@@ -232,19 +233,19 @@ export function SampleLibrary() {
       <div key={s.id}>
         <div className={`br-item sample ${sel ? 'sel' : ''}`} draggable data-sample={s.id}
           onDragStart={(e) => { e.dataTransfer.setData(DND_SAMPLE, JSON.stringify(s)); e.dataTransfer.effectAllowed = 'copyMove'; }}
-          onContextMenu={(e) => st.showContextMenu(e, sampleMenu(s))}>
+          {...longPressProps((e) => st.showContextMenu(e, sampleMenu(s)))}>
           {selecting
             ? <input type="checkbox" className="smp-check" checked={sel} onChange={() => toggleSelected(s.id)} aria-label={`Select ${s.name}`} />
             : <Icon name="wave" size={13} />}
-          <button className="br-name" title={selecting ? 'Select' : 'Preview'} onClick={async () => {
+          <button className="br-name" title={selecting ? 'Select' : '试听'} onClick={async () => {
             if (selecting) return toggleSelected(s.id);
             await st.unlockAudio();
             getEngine()?.previewSample(s.id);
           }}>{s.name}</button>
           {s.duration ? <span className="br-meta">{s.duration.toFixed(1)}s</span> : null}
-          <button className={`br-add info ${openId === s.id ? 'on' : ''}`} title="Details" aria-label={`Details of ${s.name}`} onClick={() => setOpenId(openId === s.id ? null : s.id)}><Icon name="info" size={12} /></button>
-          <button className="br-add" title="Add as sampler channel" aria-label={`Add ${s.name} as sampler channel`} onClick={() => addSamplerChannel(s)}><Icon name="plus" size={12} /></button>
-          <button className="br-add more" title="More actions" aria-label={`More actions for ${s.name}`} aria-haspopup="menu" onClick={(e) => menuAt(e, sampleMenu(s))}><Icon name="dots" size={12} /></button>
+          <button className={`br-add info ${openId === s.id ? 'on' : ''}`} title="详情" aria-label={`Details of ${s.name}`} onClick={() => setOpenId(openId === s.id ? null : s.id)}><Icon name="info" size={12} /></button>
+          <button className="br-add" title="添加为采样器通道" aria-label={`Add ${s.name} as sampler channel`} onClick={() => addSamplerChannel(s)}><Icon name="plus" size={12} /></button>
+          <button className="br-add more" title="更多操作" aria-label={`More actions for ${s.name}`} aria-haspopup="menu" onClick={(e) => menuAt(e, sampleMenu(s))}><Icon name="dots" size={12} /></button>
         </div>
         {openId === s.id && <SampleDetails s={s} />}
       </div>
@@ -259,27 +260,27 @@ export function SampleLibrary() {
       <input ref={fileRef} type="file" accept={AUDIO_ACCEPT} multiple hidden data-testid="sample-file-input"
         onChange={(e) => { onFiles(e.target.files, uploadTo.current); uploadTo.current = null; e.target.value = ''; }} />
       <div className="smp-tools">
-        <button className="btn tiny" onClick={() => pickFiles(null)}><Icon name="upload" size={12} /> Upload</button>
-        <button className="btn tiny" onClick={() => st.openWindow('recorder')}><Icon name="mic" size={12} /> Record</button>
+        <button className="btn tiny" onClick={() => pickFiles(null)}><Icon name="upload" size={12} /> 上传</button>
+        <button className="btn tiny" onClick={() => st.openWindow('recorder')}><Icon name="mic" size={12} /> 录音</button>
         <span className="spacer" />
-        <button className="btn tiny icon-btn" title="New folder" aria-label="New folder" onClick={() => guard(newSampleFolder)}><Icon name="folderPlus" size={13} /></button>
-        <button className={`btn tiny icon-btn ${selecting ? 'on' : ''}`} title="Select several samples" aria-label="Select several samples" aria-pressed={selecting}
+        <button className="btn tiny icon-btn" title="新建文件夹" aria-label="新建文件夹" onClick={() => guard(newSampleFolder)}><Icon name="folderPlus" size={13} /></button>
+        <button className={`btn tiny icon-btn ${selecting ? 'on' : ''}`} title="选择多个采样" aria-label="选择多个采样" aria-pressed={selecting}
           onClick={() => (selecting ? endSelect() : setSelecting(true))}><Icon name="check" size={13} /></button>
       </div>
       {samples.length > 0 && (
         <label className="smp-search">
           <Icon name="search" size={12} />
-          <input type="search" value={query} placeholder="Search name, folder, key, BPM…" aria-label="Search samples"
+          <input type="search" value={query} placeholder="搜索名称、文件夹、调、BPM…" aria-label="搜索采样"
             onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />
         </label>
       )}
       {selecting && (
-        <div className="smp-bulk" role="toolbar" aria-label="Selected samples">
+        <div className="smp-bulk" role="toolbar" aria-label="已选采样">
           <span>{selectedIds.length} selected</span>
-          <button className="btn tiny" onClick={() => setSelected(new Set(visibleRows.map((s) => s.id)))}>All</button>
-          <button className="btn tiny" disabled={!selectedIds.length} onClick={(e) => menuAt(e, moveMenu(selectedIds))}>Move to…</button>
-          <button className="btn tiny danger" disabled={!selectedIds.length} onClick={() => guard(async () => { if (await deleteSamplesWithWarning(selectedList)) endSelect(); })}>Delete</button>
-          <button className="btn tiny" onClick={endSelect}>Done</button>
+          <button className="btn tiny" onClick={() => setSelected(new Set(visibleRows.map((s) => s.id)))}>全部</button>
+          <button className="btn tiny" disabled={!selectedIds.length} onClick={(e) => menuAt(e, moveMenu(selectedIds))}>移动到…</button>
+          <button className="btn tiny danger" disabled={!selectedIds.length} onClick={() => guard(async () => { if (await deleteSamplesWithWarning(selectedList)) endSelect(); })}>删除</button>
+          <button className="btn tiny" onClick={endSelect}>完成</button>
         </div>
       )}
       {flat
@@ -289,7 +290,7 @@ export function SampleLibrary() {
           return (
             <div key={g.key || 'unfiled'} className="smp-folder" data-folder={g.name}>
               <div className={`br-item br-folder ${over === g.key ? 'drop' : ''}`} {...dropProps(g.key)}
-                onContextMenu={(e) => g.folder && st.showContextMenu(e, folderMenu(g.folder))}>
+                {...(g.folder ? longPressProps((e) => st.showContextMenu(e, folderMenu(g.folder))) : null)}>
                 <button className="br-expand" aria-expanded={isOpen} aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${g.name}`} onClick={() => toggleCollapsed(g.key)}>
                   <Icon name={isOpen ? 'chevronDown' : 'chevronRight'} size={12} />
                 </button>
@@ -297,17 +298,17 @@ export function SampleLibrary() {
                 <button className="br-name" onClick={() => toggleCollapsed(g.key)}>{g.name}</button>
                 <span className="br-meta">{g.items.length}</span>
                 {g.folder
-                  ? <button className="br-add more" title="Folder actions" aria-label={`Actions for folder ${g.name}`} aria-haspopup="menu" onClick={(e) => menuAt(e, folderMenu(g.folder))}><Icon name="dots" size={12} /></button>
+                  ? <button className="br-add more" title="文件夹操作" aria-label={`Actions for folder ${g.name}`} aria-haspopup="menu" onClick={(e) => menuAt(e, folderMenu(g.folder))}><Icon name="dots" size={12} /></button>
                   : <span className="br-add-spacer" aria-hidden="true" />}
               </div>
-              {isOpen && <div className="smp-items">{g.items.map(row)}{!g.items.length && <p className="br-empty">Drop samples here.</p>}</div>}
+              {isOpen && <div className="smp-items">{g.items.map(row)}{!g.items.length && <p className="br-empty">把采样拖到这里。</p>}</div>}
             </div>
           );
         })}
       {!samples.length && (
-        <p className="br-hint">Drop audio here, upload or record. Claude sees each file's format, bitrate, sample rate, loudness, pitch, tempo and key. Drag a sample onto the Playlist (audio clip) or Channel Rack (sampler).</p>
+        <p className="br-hint">把音频拖到这里，或上传／录制。把采样拖到播放列表（音频片段）或通道架（采样器）即可使用。</p>
       )}
-      {samples.length > 0 && words.length > 0 && !visible.length && <p className="br-empty">No samples match “{query}”.</p>}
+      {samples.length > 0 && words.length > 0 && !visible.length && <p className="br-empty">没有匹配「{query}」的采样。</p>}
     </div>
   );
 }

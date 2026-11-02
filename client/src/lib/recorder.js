@@ -8,8 +8,8 @@ export function recordingSupport() {
   if (typeof window !== 'undefined' && window.isSecureContext === false) {
     return 'Recording needs a secure page: open the studio over https:// (or as http://localhost on the computer that runs it). Browsers only allow the microphone there.';
   }
-  if (!navigator.mediaDevices?.getUserMedia) return 'This browser cannot record audio.';
-  if (typeof AudioWorkletNode === 'undefined') return 'This browser cannot record audio (no AudioWorklet support).';
+  if (!navigator.mediaDevices?.getUserMedia) return '此浏览器无法录音。';
+  if (typeof AudioWorkletNode === 'undefined') return '此浏览器无法录音（不支持 AudioWorklet）。';
   return null;
 }
 
@@ -21,10 +21,10 @@ export function micErrorMessage(e) {
       return 'Microphone access was blocked. Allow the microphone for this site (the icon in the address bar), then try again.';
     case 'NotFoundError':
     case 'OverconstrainedError':
-      return 'No microphone found. Connect one, or pick another input, and try again.';
+      return '没有找到麦克风。请接一个，或换一个输入，再试一次。';
     case 'NotReadableError':
     case 'AbortError':
-      return 'The microphone is busy or unavailable — another app may be using it.';
+      return '麦克风被占用或不可用 — 可能有别的程序正在使用它。';
     default:
       return e?.message || String(e);
   }
@@ -64,7 +64,7 @@ export class MicSession {
     this.stream = stream;
     this.channels = channels;
     const track = stream.getAudioTracks()[0];
-    this.label = track?.label || 'Microphone';
+    this.label = track?.label || '麦克风';
     this.settings = track?.getSettings?.() || {};
     this.source = ctx.createMediaStreamSource(stream);
     this.analyser = ctx.createAnalyser();
@@ -153,14 +153,14 @@ export class MicSession {
   }
 }
 
-/** The user's "Recordings" folder (created on first use). */
+/** The user's "录音" folder (created on first use). */
 export async function recordingsFolder() {
   const st = useStore.getState();
   const find = () => useStore.getState().sampleFolders.find((f) => f.name.toLowerCase() === 'recordings');
   let f = find();
   if (f) return f;
   try {
-    f = await api.createSampleFolder('Recordings');
+    f = await api.createSampleFolder('录音');
   } catch (e) {
     if (e.status !== 409) throw e;
   }

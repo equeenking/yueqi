@@ -34,8 +34,8 @@ export function AuthScreen() {
       <div className="auth-wrap">
         <div className="auth-card">
           <Brand />
-          <p className="auth-error">Can't reach the GreanTeaDawy server ({auth.error}). Retrying…</p>
-          <p className="muted">Make sure it is running: <code>npm start</code> or <code>npm run dev</code>.</p>
+          <p className="auth-error">连不上 GreanTeaDawy 服务端（{auth.error}）。正在重试…</p>
+          <p className="muted">Make sure it is running: <code>npm start</code> 或 <code>npm run dev</code>.</p>
         </div>
       </div>
     );
@@ -48,7 +48,7 @@ export function AuthScreen() {
     e.preventDefault();
     setError(null);
     if ((current === 'setup' || current === 'register') && password !== confirm) {
-      setError('Passwords do not match');
+      setError('两次输入的密码不一致');
       return;
     }
     setBusy(true);
@@ -68,38 +68,38 @@ export function AuthScreen() {
         <Brand />
         {current === 'setup' && (
           <>
-            <h2>Welcome! Create the admin account</h2>
-            <p className="muted">This first account manages the studio: users, sign-up and MCP access. Your projects stay private to your account.</p>
+            <h2>欢迎！创建管理员账号</h2>
+            <p className="muted">第一个账号用来管理这个工作室：用户、注册与 MCP 访问。你的工程只属于你自己的账号。</p>
           </>
         )}
-        {current === 'login' && <h2>Sign in to your studio</h2>}
-        {current === 'register' && <h2>Create your account</h2>}
+        {current === 'login' && <h2>登录你的工作室</h2>}
+        {current === 'register' && <h2>创建你的账号</h2>}
         {current === 'setup' && auth.setupCodeRequired && (
-          <Field label="Setup code" value={setupCode} onChange={setSetupCode} autoComplete="one-time-code" autoFocus
-            hint="Printed in the server log when it starts — proves you run this server." />
+          <Field label="初始化码" value={setupCode} onChange={setSetupCode} autoComplete="one-time-code" autoFocus
+            hint="服务端启动时会打印在日志里 — 用来证明你是这台服务器的所有者。" />
         )}
         {(current === 'setup' || current === 'register') && (
-          <Field label="Display name" value={displayName} onChange={setDisplayName} autoComplete="name" autoFocus={!auth.setupCodeRequired} />
+          <Field label="显示名" value={displayName} onChange={setDisplayName} autoComplete="name" autoFocus={!auth.setupCodeRequired} />
         )}
-        <Field label="Username" value={username} onChange={setUsername} autoComplete="username" autoFocus={current === 'login'}
-          hint={current !== 'login' ? '3–32 characters: letters, digits, _ . -' : undefined} />
-        <Field label="Password" type="password" value={password} onChange={setPassword}
-          autoComplete={current === 'login' ? 'current-password' : 'new-password'} hint={current !== 'login' ? 'At least 8 characters' : undefined} />
+        <Field label="用户名" value={username} onChange={setUsername} autoComplete="username" autoFocus={current === 'login'}
+          hint={current !== 'login' ? '3–32 个字符：字母、数字、_ . -' : undefined} />
+        <Field label="密码" type="password" value={password} onChange={setPassword}
+          autoComplete={current === 'login' ? 'current-password' : 'new-password'} hint={current !== 'login' ? '至少 8 个字符' : undefined} />
         {(current === 'setup' || current === 'register') && (
-          <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+          <Field label="确认密码" type="password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         )}
         {error && <p className="auth-error" role="alert">{error}</p>}
         <button className="btn primary auth-submit" type="submit" disabled={busy || !username || !password}>
-          {busy ? 'Please wait…' : current === 'setup' ? 'Create admin & open studio' : current === 'register' ? 'Create account' : 'Sign in'}
+          {busy ? '请稍候…' : current === 'setup' ? '创建管理员并进入工作台' : current === 'register' ? '创建账号' : '登录'}
         </button>
         {!isSetup && auth.allowRegistration && (
           <p className="auth-switch">
             {mode === 'login'
-              ? <>New here? <button type="button" className="link" onClick={() => { setMode('register'); setError(null); }}>Create an account</button></>
-              : <>Already have an account? <button type="button" className="link" onClick={() => { setMode('login'); setError(null); }}>Sign in</button></>}
+              ? <>第一次来？ <button type="button" className="link" onClick={() => { setMode('register'); setError(null); }}>创建账号</button></>
+              : <>已有账号？ <button type="button" className="link" onClick={() => { setMode('login'); setError(null); }}>登录</button></>}
           </p>
         )}
-        {!isSetup && !auth.allowRegistration && <p className="auth-switch muted">Need an account? Ask your studio admin.</p>}
+        {!isSetup && !auth.allowRegistration && <p className="auth-switch muted">需要账号？请联系你的工作室管理员。</p>}
       </form>
     </div>
   );
@@ -111,7 +111,7 @@ function Brand() {
       <span className="logo-mark">◆</span>
       <div>
         <div className="auth-title">GreanTeaDawy</div>
-        <div className="auth-sub">Make beats in your browser — with Claude as your co-producer</div>
+        <div className="auth-sub">在浏览器里做音乐——Claude 与你共同制作</div>
       </div>
     </div>
   );

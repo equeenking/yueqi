@@ -10,6 +10,7 @@
 import { midiToFreq } from '@greanteadawy/core';
 import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q } from './dsp.js';
 import { modelOf } from './models.js';
+import { getBankTake } from './sampleBank.js';
 import { osc, biquad, gainNode, sharedLfo, modelVoice } from './band.js';
 
 const nyq = (ctx) => ctx.sampleRate / 2 - 100;
@@ -109,7 +110,11 @@ const WIND = {
   ocarina: { harm: [1, 0.04, 0.015], q: 8, scoop: [-10, 0.05], air: 4000, level: 0.52 },
   bansuri: { harm: [1, 0.35, 0.14, 0.06, 0.03], q: 3, scoop: [-35, 0.09], air: 6000, level: 0.57 },
   shakuhachi: { harm: [1, 0.42, 0.22, 0.12, 0.07, 0.04, 0.02], q: 2, scoop: [-60, 0.18], air: 7000, level: 0.59 },
-  dizi: { harm: [1, 0.55, 0.38, 0.25, 0.2, 0.14, 0.1, 0.07, 0.05], q: 4, scoop: [-20, 0.04], air: 9000, level: 0.64 }
+  dizi: { harm: [1, 0.55, 0.38, 0.25, 0.2, 0.14, 0.1, 0.07, 0.05], q: 4, scoop: [-20, 0.04], air: 9000, level: 0.64 },
+  // the xiao is the dizi's dark, breathy cousin: a soft fundamental with more air and a slower swell
+  xiao: { harm: [1, 0.3, 0.13, 0.06, 0.03, 0.02], q: 3, scoop: [-35, 0.12], air: 5500, level: 0.5 },
+  // the melodica is a free reed behind a keyboard: reedy, harmonically rich, almost no scoop (a key speaks at once)
+  melodica: { harm: [1, 0.5, 0.45, 0.3, 0.22, 0.18, 0.12, 0.08, 0.05, 0.03], q: 3, scoop: [-8, 0.03], air: 5500, level: 0.55 }
 };
 
 function wind(kind) {
@@ -383,6 +388,35 @@ function gong(v, ctx, p, { t, vel, velRaw, ratio }) {
   const f = p.pitch * ratio;
   const hard = Math.max(0.05, p.mallet * timbre(velRaw, 0.5));
   const bendTo = 1 + 0.12 * p.bend; // opera gongs: the pitch falls (daluo) or rises (xiaoluo) after the hit
+  // real recording (when the bank is loaded): the take carries the strike, the shimmer and the long tail, so it
+  // replaces the additive synth entirely (the bell type stays synthetic — the bank holds gongs, not bells).
+  // The playback rate resamples to the target pitch natively (zero JS cost, identical live and offline) and the
+  // 弯音 bend is a playbackRate ramp, which is what a real recording of the bend would do to the whole spectrum.
+  const take = p.type === 'bell' ? null : getBankTake('gong', f, velRaw);
+  if (take) {
+    const buf = ctx.createBuffer(1, take.data.length, take.rate);
+    buf.copyToChannel(take.data, 0);
+    const src = v.add(ctx.createBufferSource());
+    src.buffer = buf;
+    const rate = f / take.freq;
+    if (Math.abs(p.bend) > 0.01) {
+      src.playbackRate.setValueAtTime(rate * bendTo, t);
+      src.playbackRate.exponentialRampToValueAtTime(rate, t + 0.35);
+    } else {
+      src.playbackRate.value = rate;
+    }
+    // the recorded dynamic (p…fff) already is most of the velocity response — the gain only trims around it,
+    // instead of the usual squared curve on top (that would make a soft take inaudibly quiet)
+    const level = Math.min(1.3, take.vel ? Math.pow(velRaw / take.vel, 2) : 1) * 0.9;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(level, t + 0.003); // click guard: recordings can start abruptly
+    src.connect(g).connect(v.out);
+    const natural = t + take.data.length / take.rate / rate;
+    src.start(t);
+    src.stop(natural + 0.01);
+    return natural;
+  }
   let end = t + 0.05;
   (p.type === 'bell' ? BELL_MODES : GONG_MODES).forEach(([m, a, d], i) => {
     const fm = f * m;
@@ -412,6 +446,17 @@ function gong(v, ctx, p, { t, vel, velRaw, ratio }) {
     end = Math.max(end, e + 0.02);
   }
   return Math.max(end, noiseHit(v, ctx, t, { type: 'lowpass', freq: 500, level: vel * 0.5 * (0.5 + hard), decay: 0.04 }));
+}
+
+/** 木鱼 without a bank: a small wooden knock — a pitched thump plus the mallet's woody click. */
+function muyu(v, ctx, p, { t, vel, velRaw, ratio }) {
+  const f = 156 * ratio; // the recorded hi zone ≈ D#3; the played key transposes around it
+  let end = toneHit(v, ctx, t, { wave: 'triangle', freq: f, from: f * 1.35, drop: 0.012, level: vel * 0.9, decay: 0.09 });
+  end = Math.max(end, noiseHit(v, ctx, t, {
+    type: 'lowpass', freq: Math.min(nyq(ctx), (700 + Math.pow(p.brightness, 1.4) * 5000) * Math.max(0.6, Math.min(1.6, ratio))),
+    level: vel * 0.5 * timbre(velRaw, 0.5), decay: 0.02
+  }));
+  return Math.max(end, toneHit(v, ctx, t, { wave: 'sine', freq: f * 0.5, level: vel * 0.4 * (0.3 + p.body), decay: Math.max(0.05, p.release) }));
 }
 
 // ------------------------------------------------------------------ beatbox
@@ -613,5 +658,7 @@ export const WORLD = {
   sitar: plucked('sitar'), tanpura: plucked('tanpura'), tabla, bansuri: wind('bansuri'), shehnai: reed('shehnai'),
   santoor: plucked('santoor'), harmonium,
   koto: plucked('koto'), guzheng: plucked('guzheng'), pipa: plucked('pipa'), shamisen: plucked('shamisen'), erhu,
-  shakuhachi: wind('shakuhachi'), dizi: wind('dizi'), suona: reed('suona'), taiko, gong
+  shakuhachi: wind('shakuhachi'), dizi: wind('dizi'), xiao: wind('xiao'), suona: reed('suona'), taiko, gong,
+  // xun falls back to the ocarina breath recipe (the recorded bank is an ocarina too); muyu to a synth knock
+  xun: wind('ocarina'), muyu, melodica: wind('melodica')
 };

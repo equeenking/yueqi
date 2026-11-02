@@ -97,11 +97,11 @@ export function Window({ name, title, icon, toolbar, children, minW = 320, minH 
         <span className="window-name">{title}</span>
         <div className="window-toolbar" onPointerDown={(e) => { if (onControl(e)) e.stopPropagation(); }} onDoubleClick={(e) => { if (onControl(e)) e.stopPropagation(); }}>{toolbar}</div>
         {!compact && (
-          <button className="wbtn" title={w.max ? 'Restore' : 'Maximize'} onPointerDown={(e) => e.stopPropagation()} onClick={() => moveWindow(name, { max: !w.max })}>
+          <button className="wbtn" title={w.max ? '恢复' : '最大化'} onPointerDown={(e) => e.stopPropagation()} onClick={() => moveWindow(name, { max: !w.max })}>
             <Icon name={w.max ? 'restore' : 'max'} size={12} />
           </button>
         )}
-        <button className="wbtn close" title="Close" onPointerDown={(e) => e.stopPropagation()} onClick={() => (onClose ? onClose() : closeWindow(name))}>
+        <button className="wbtn close" title="关闭" onPointerDown={(e) => e.stopPropagation()} onClick={() => (onClose ? onClose() : closeWindow(name))}>
           <Icon name="close" size={12} />
         </button>
       </header>

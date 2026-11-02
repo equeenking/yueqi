@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { TEMPLATES, PPQ, STEP, ticksPerBar, SPATIAL_EXPORTS, SPATIAL_EXPORT_IDS } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 import { api } from '../state/api.js';
@@ -12,11 +11,11 @@ import {
   importProjectJson, importMidi
 } from '../lib/actions.js';
 import { connectMidi } from '../lib/midiInput.js';
-import { APP_NAME, APP_VERSION } from '../lib/version.js';
+import { APP_NAME } from '../lib/version.js';
 
 /** File → Export song as…: the formats the server's ffmpeg can make (the rest shown disabled, with the reason). */
 function exportFormatItems(info) {
-  if (!info) return [{ label: 'Checking the server for ffmpeg…', disabled: true }];
+  if (!info) return [{ label: '正在检查服务端的 ffmpeg…', disabled: true }];
   const items = info.formats.filter((f) => f.id !== 'wav').map((f) => ({
     label: `${f.label}${f.bitrates ? ` (${f.defaultBitrate} kbps)` : f.lossless ? ' (24-bit)' : ''}${f.available ? '' : ' — needs ffmpeg'}`,
     disabled: !f.available,
@@ -25,11 +24,11 @@ function exportFormatItems(info) {
   const lossy = info.formats.filter((f) => f.available && f.bitrates);
   const more = lossy.map((f) => ({ label: `${f.label} at…`, submenu: f.bitrates.map((b) => ({ label: `${b} kbps`, checked: b === f.defaultBitrate, onClick: () => exportAs(f.id, { bitrate: b }) })) }));
   return [
-    { header: info.ffmpeg.available ? `via ffmpeg ${info.ffmpeg.version}` : 'ffmpeg not available on the server' },
+    { header: info.ffmpeg.available ? `via ffmpeg ${info.ffmpeg.version}` : '服务端没有可用的 ffmpeg' },
     ...items,
     ...(more.length ? ['-', ...more] : []),
     '-',
-    { label: 'Audio export settings…', onClick: () => { useStore.setState({ settingsTab: 'export' }); useStore.getState().openWindow('settings'); } }
+    { label: '音频导出设置…', onClick: () => { useStore.setState({ settingsTab: 'export' }); useStore.getState().openWindow('settings'); } }
   ];
 }
 
@@ -43,27 +42,30 @@ function TimeDisplay() {
   const step = Math.floor((t - b * bar - beat * PPQ) / STEP);
   const secs = (t / PPQ) * (60 / project.bpm);
   return (
-    <div className="time-display" title="Song position (bar : beat : step)">
+    <div className="time-display" title="歌曲位置（小节 : 拍 : 步）">
       <span className="time-main">{String(b + 1).padStart(3, ' ')}:{beat + 1}:{String(step + 1).padStart(2, '0')}</span>
       <span className="time-sub">{Math.floor(secs / 60)}:{String(Math.floor(secs % 60)).padStart(2, '0')}</span>
     </div>
   );
 }
 
+// 打拍定速:工具栏按钮与 ◆ 菜单共用一份 taps(连续点三下以上生效,间隔 2.5 秒内的才算)
+const tapTaps = [];
+function tapTempo(dispatch) {
+  const now = performance.now();
+  while (tapTaps.length && now - tapTaps[0] > 2500) tapTaps.shift();
+  tapTaps.push(now);
+  if (tapTaps.length >= 3) {
+    const d = tapTaps.slice(1).map((t, i) => t - tapTaps[i]);
+    const bpm = Math.round(60000 / (d.reduce((a, b) => a + b, 0) / d.length));
+    dispatch([{ type: 'project/update', patch: { bpm: Math.max(40, Math.min(300, bpm)) } }], { coalesce: 'tap' });
+  }
+}
+
 function TapTempo() {
-  const taps = useRef([]);
   const dispatch = useStore((s) => s.dispatch);
   return (
-    <button className="tbtn small tap" title="Tap tempo" onClick={() => {
-      const now = performance.now();
-      taps.current = taps.current.filter((t) => now - t < 2500);
-      taps.current.push(now);
-      if (taps.current.length >= 3) {
-        const d = taps.current.slice(1).map((t, i) => t - taps.current[i]);
-        const bpm = Math.round(60000 / (d.reduce((a, b) => a + b, 0) / d.length));
-        dispatch([{ type: 'project/update', patch: { bpm: Math.max(40, Math.min(300, bpm)) } }], { coalesce: 'tap' });
-      }
-    }}>TAP</button>
+    <button className="tbtn small tap" title="打拍定速（跟着节奏连点三下）" onClick={() => tapTempo(dispatch)}>打拍</button>
   );
 }
 
@@ -84,155 +86,170 @@ export function Toolbar() {
   const st = useStore.getState();
 
   const fileMenu = (e) => st.showContextMenu(e, [
-    { header: 'Project' },
-    { label: 'New from template', submenu: Object.entries(TEMPLATES).map(([key, t]) => ({ label: t.label, onClick: async () => {
-      const name = await st.prompt({ title: 'New project', value: key === 'empty' || key === 'default' ? 'Untitled' : t.label.split(' (')[0] });
-      if (name !== null) st.createProject({ name: name || 'Untitled', template: key });
+    { header: '项目' },
+    { label: '从模板新建', submenu: Object.entries(TEMPLATES).map(([key, t]) => ({ label: t.label, onClick: async () => {
+      const name = await st.prompt({ title: '新建项目', value: key === 'empty' || key === 'default' ? '未命名' : t.label.split(' (')[0] });
+      if (name !== null) st.createProject({ name: name || '未命名', template: key });
     } })) },
-    { label: 'Rename project…', onClick: async () => {
-      const name = await st.prompt({ title: 'Rename project', value: project.name });
+    { label: '重命名项目…', onClick: async () => {
+      const name = await st.prompt({ title: '重命名项目', value: project.name });
       if (name) st.dispatch([{ type: 'project/update', patch: { name } }]);
     } },
-    { label: 'Time signature…', onClick: async () => {
-      const v = await st.prompt({ title: 'Time signature', value: project.timeSig.join('/'), label: 'Beats per bar / beat unit (e.g. 4/4, 3/4, 6/8)' });
+    { label: '打拍定速（跟着节奏连点）', onClick: () => tapTempo(useStore.getState().dispatch) },
+    { label: '拍号…', onClick: async () => {
+      const v = await st.prompt({ title: '拍号', value: project.timeSig.join('/'), label: '每小节拍数／音符单位（如 4/4、3/4、6/8）' });
       const m = /^(\d+)\s*\/\s*(\d+)$/.exec(v || '');
       if (m) st.dispatch([{ type: 'project/update', patch: { timeSig: [Number(m[1]), Number(m[2])] } }]);
     } },
-    { label: 'Versions…', onClick: () => st.openWindow('versions') },
-    { label: 'Save a copy', onClick: async () => {
+    { label: '版本…', onClick: () => st.openWindow('versions') },
+    { label: '保存副本', onClick: async () => {
       const p = await api.duplicateProject(project.id, `${project.name} (copy)`);
       st.refreshProjects();
-      st.toast(`Saved copy "${p.name}"`, 'success');
+      st.toast(`已另存为「${p.name}」`, 'success');
     } },
     '-',
-    { header: 'Export' },
-    { label: 'Export song as WAV', submenu: [
-      { label: '16-bit (dithered, for sharing)', onClick: () => exportWav('song', { bitDepth: 16 }) },
-      { label: '24-bit (for mastering)', onClick: () => exportWav('song', { bitDepth: 24 }) }
+    { header: '导出' },
+    { label: '导出歌曲为 WAV', submenu: [
+      { label: '16 位（含抖动，便于分享）', onClick: () => exportWav('song', { bitDepth: 16 }) },
+      { label: '24 位（用于母带）', onClick: () => exportWav('song', { bitDepth: 24 }) }
     ] },
-    { label: 'Export song as…', submenu: exportFormatItems(st.exportFormats) },
-    { label: 'Export pattern loop as WAV', onClick: () => exportWav('pattern') },
-    { label: 'Export stems (each channel, to Exports)', onClick: exportStemsFromUi },
-    { label: 'Export spatial mix (3D)…', submenu: SPATIAL_EXPORT_IDS.map((k) => ({ label: SPATIAL_EXPORTS[k].label, onClick: () => exportSpatialFromUi(k) })) },
-    { label: 'Export MIDI (song)', onClick: () => exportMidi('song') },
-    { label: 'Export project file (.json)', onClick: exportProjectJson },
+    { label: '导出歌曲为…', submenu: exportFormatItems(st.exportFormats) },
+    { label: '导出片段循环为 WAV', onClick: () => exportWav('pattern') },
+    { label: '导出分轨（各通道，存到导出）', onClick: exportStemsFromUi },
+    { label: '导出空间混音（3D）…', submenu: SPATIAL_EXPORT_IDS.map((k) => ({ label: SPATIAL_EXPORTS[k].label, onClick: () => exportSpatialFromUi(k) })) },
+    { label: '导出 MIDI（歌曲）', onClick: () => exportMidi('song') },
+    { label: '导出项目文件（.json）', onClick: exportProjectJson },
     '-',
-    { header: 'Import' },
-    { label: 'Import MIDI into current pattern…', onClick: importMidi },
-    { label: 'Import project file…', onClick: importProjectJson },
+    { header: '导入' },
+    { label: '把 MIDI 导入当前片段…', onClick: importMidi },
+    { label: '导入项目文件…', onClick: importProjectJson },
     '-',
-    { label: 'Settings…', onClick: () => st.openWindow('settings') },
-    { label: 'Connect Claude (API token & MCP)…', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
-    { label: 'Follow Claude (auto-open its projects)', checked: st.followClaude, onClick: () => st.setPref('followClaude', !st.followClaude) },
-    { label: 'Reset window layout', onClick: st.resetLayout },
-    { label: 'Keyboard shortcuts & help', onClick: () => st.openWindow('help') },
-    { label: `About ${APP_NAME}…`, onClick: () => st.showAbout() }
+    // secondary windows live here, not on the bar: the bar only keeps the three daily views
+    { header: '窗口' },
+    { label: '播放列表', shortcut: 'F5', checked: windows.playlist?.open, onClick: () => st.toggleWindow('playlist') },
+    { label: '通道架', shortcut: 'F6', checked: windows.channelRack?.open, onClick: () => st.toggleWindow('channelRack') },
+    { label: '弹奏（智能乐器）', checked: windows.play?.open, onClick: () => st.toggleWindow('play') },
+    { label: '钢琴卷帘', shortcut: 'F7', checked: windows.pianoRoll?.open, onClick: () => st.toggleWindow('pianoRoll') },
+    { label: '通道设置', shortcut: 'F8', checked: windows.channelSettings?.open, onClick: () => st.toggleWindow('channelSettings') },
+    { label: '混音台', shortcut: 'F9', checked: windows.mixer?.open, onClick: () => st.toggleWindow('mixer') },
+    { label: '空间混音台（3D／全景声）', checked: windows.spatial?.open, onClick: () => st.toggleWindow('spatial') },
+    { label: '连接 MIDI 键盘', checked: !!midiStatus, onClick: connectMidi },
+    '-',
+    { label: '设置…', onClick: () => st.openWindow('settings') },
+    { label: '连接 Claude（API 令牌与 MCP）…', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
+    { label: '跟随 Claude（自动打开它的项目）', checked: st.followClaude, onClick: () => st.setPref('followClaude', !st.followClaude) },
+    { label: '重置窗口布局', onClick: st.resetLayout },
+    { label: '键盘快捷键与帮助', onClick: () => st.openWindow('help') },
+    { label: `关于 ${APP_NAME}…`, onClick: () => st.showAbout() }
   ]);
 
   const user = useStore.getState().auth.user;
   const initials = (user?.displayName || user?.username || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   const userMenu = (e) => st.showContextMenu(e, [
     { header: `${user.displayName} (@${user.username})` },
-    { label: 'Account settings', onClick: () => { useStore.setState({ settingsTab: 'account' }); st.openWindow('settings'); } },
-    { label: 'API token & MCP', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
-    user.role === 'admin' && { label: 'Manage users', onClick: () => { useStore.setState({ settingsTab: 'users' }); st.openWindow('settings'); } },
+    { label: '账号设置', onClick: () => { useStore.setState({ settingsTab: 'account' }); st.openWindow('settings'); } },
+    { label: 'API 令牌与 MCP', onClick: () => { useStore.setState({ settingsTab: 'api' }); st.openWindow('settings'); } },
+    user.role === 'admin' && { label: '管理用户', onClick: () => { useStore.setState({ settingsTab: 'users' }); st.openWindow('settings'); } },
     '-',
-    { label: 'Sign out', onClick: () => st.signOut() }
+    !useStore.getState().auth.authDisabled && { label: '退出登录', onClick: () => st.signOut() }
   ].filter(Boolean));
 
   const patternMenu = (e) => st.showContextMenu(e, [
-    { label: 'New pattern', shortcut: 'F4', onClick: () => newPattern() },
-    { label: 'Clone pattern', onClick: () => clonePattern(selectedPatternId) },
-    { label: 'Rename…', onClick: () => renamePattern(selectedPatternId) },
-    { label: 'Delete', danger: true, onClick: () => deletePattern(selectedPatternId) }
+    { label: '新建片段', shortcut: 'F4', onClick: () => newPattern() },
+    { label: '克隆片段', onClick: () => clonePattern(selectedPatternId) },
+    { label: '重命名…', onClick: () => renamePattern(selectedPatternId) },
+    { label: '删除', danger: true, onClick: () => deletePattern(selectedPatternId) }
   ]);
 
   const master = project.mixer[0];
-  const winBtn = (name, icon, label, key) => (
-    <button className={`tbtn win ${windows[name]?.open ? 'active' : ''}`} title={`${label} (${key})`} onClick={() => st.toggleWindow(name)}>
-      <Icon name={icon} size={16} />
+  const winBtn = (name, icon, label, key, withText) => (
+    <button className={`tbtn win ${windows[name]?.open ? 'active' : ''}`} title={key ? `${label} (${key})` : label} onClick={() => st.toggleWindow(name)}>
+      <Icon name={icon} size={16} />{withText && <span className="win-label">{label}</span>}
     </button>
   );
 
+  // GarageBand-for-iPad style bar, trimmed to what a class actually uses daily, ordered by frequency:
+  // left = project + the three daily views; center = transport (highest priority); right = clip / master / status.
+  // Everything else (piano roll, mixer, settings, MIDI, about) lives in the ◆ menu under 窗口 — F-keys still work.
   return (
     <div className="toolbar" role="toolbar">
-      <div className="tb-group">
-        <button className="tbtn logo" onClick={fileMenu} title="Menu">
-          <span className="logo-mark">◆</span><span className="logo-text">GreanTeaDawy</span><Icon name="chevronDown" size={12} />
-        </button>
-        <button className="tbtn" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={st.undo}><Icon name="undo" /></button>
-        <button className="tbtn" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={st.redo}><Icon name="redo" /></button>
-      </div>
-
-      <div className="tb-group transport">
-        <div className="mode-switch" role="radiogroup" aria-label="Playback mode">
-          <button role="radio" aria-checked={mode === 'pattern'} className={mode === 'pattern' ? 'on pat' : ''} onClick={() => st.setMode('pattern')} title="Pattern mode: loop the selected pattern (Shift+L toggles)">PAT</button>
-          <button role="radio" aria-checked={mode === 'song'} className={mode === 'song' ? 'on song' : ''} onClick={() => st.setMode('song')} title="Song mode: play the playlist (Shift+L toggles)">SONG</button>
+      <div className="tb-side tb-left">
+        <div className="tb-group">
+          <button className="tbtn logo" onClick={fileMenu} title="菜单">
+            <span className="logo-mark">◆</span><span className="logo-text">GreanTeaDawy</span><Icon name="chevronDown" size={12} />
+          </button>
+          <button className="tbtn" title="撤销（Ctrl+Z）" disabled={!canUndo} onClick={st.undo}><Icon name="undo" /></button>
+          <button className="tbtn" title="重做（Ctrl+Y）" disabled={!canRedo} onClick={st.redo}><Icon name="redo" /></button>
+          <button className="tbtn" title="新手指南：三分钟上手（模板、播放、导出）" onClick={() => useStore.setState({ welcomeOpen: true })}><Icon name="book" /></button>
         </div>
-        <button className={`tbtn play ${playing ? 'active' : ''}`} title="Play / Stop (Space)" onClick={st.togglePlay}>
-          <Icon name={playing ? 'pause' : 'play'} size={18} />
-        </button>
-        <button className="tbtn" title="Stop" onClick={st.stop}><Icon name="stop" size={16} /></button>
-        <button className={`tbtn rec ${recording ? 'active' : ''}`} title="Record: notes you play on the computer keyboard / MIDI while playing are written into the pattern" onClick={() => useStore.setState({ recording: !recording })}>
-          <Icon name="record" size={16} />
-        </button>
-        <button className="tbtn mic" title="Record audio (microphone): opens the recorder" aria-label="Record audio" onClick={() => st.toggleWindow('recorder')}>
-          <Icon name="mic" size={16} />
-        </button>
-        <div className="tempo" title="Tempo (BPM)">
-          <DragNumber value={project.bpm} min={20} max={400} step={1} sensitivity={0.3}
-            format={(v) => v.toFixed(v % 1 ? 2 : 0)} className="tempo-num"
-            onChange={(v) => st.dispatch([{ type: 'project/update', patch: { bpm: v } }], { coalesce: 'bpm' })} />
-          <span className="tempo-label">BPM</span>
+        <div className="tb-group windows">
+          <button className={`tbtn win ${browserOpen ? 'active' : ''}`} title="浏览器（Alt+F8）" onClick={() => st.setPref('browserOpen', !browserOpen)}><Icon name="folder" /></button>
+          {winBtn('playlist', 'playlist', '播放列表', 'F5', true)}
+          {winBtn('channelRack', 'rack', '通道架', 'F6', true)}
+          {winBtn('play', 'music', '弹奏', null, true)}
         </div>
-        <TapTempo />
-        <button className={`tbtn metro ${metronome ? 'active' : ''}`} title="Metronome" onClick={st.toggleMetronome}><Icon name="metronome" /></button>
-        <TimeDisplay />
       </div>
 
-      <div className="tb-group pattern-pick">
-        <button className="tbtn small" title="Previous pattern" onClick={() => {
-          const i = project.patterns.findIndex((p) => p.id === selectedPatternId);
-          if (i > 0) st.selectPattern(project.patterns[i - 1].id);
-        }}>‹</button>
-        <select className="ui-select pattern-select" value={selectedPatternId || ''} onChange={(e) => st.selectPattern(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()} title="Current pattern">
-          {project.patterns.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <button className="tbtn small" title="Next pattern" onClick={() => {
-          const i = project.patterns.findIndex((p) => p.id === selectedPatternId);
-          if (i < project.patterns.length - 1) st.selectPattern(project.patterns[i + 1].id);
-        }}>›</button>
-        <button className="tbtn small" title="Pattern options" onClick={patternMenu}><Icon name="plus" size={14} /></button>
+      <div className="tb-center">
+        <div className="tb-group transport">
+          <div className="mode-switch" role="radiogroup" aria-label="播放模式">
+            <button role="radio" aria-checked={mode === 'pattern'} className={mode === 'pattern' ? 'on pat' : ''} onClick={() => st.setMode('pattern')} title="片段模式：循环所选片段（Shift+L 切换）">片段</button>
+            <button role="radio" aria-checked={mode === 'song'} className={mode === 'song' ? 'on song' : ''} onClick={() => st.setMode('song')} title="歌曲模式：播放播放列表（Shift+L 切换）">歌曲</button>
+          </div>
+          <button className={`tbtn play ${playing ? 'active' : ''}`} title="播放／停止（空格）" onClick={st.togglePlay}>
+            <Icon name={playing ? 'pause' : 'play'} size={20} />
+          </button>
+          <button className="tbtn" title="停止" onClick={st.stop}><Icon name="stop" size={16} /></button>
+          <button className={`tbtn rec ${recording ? 'active' : ''}`} title="录音：播放时在电脑键盘／MIDI 上弹的音符会写入片段" onClick={() => useStore.setState({ recording: !recording })}>
+            <Icon name="record" size={16} />
+          </button>
+          <div className="tempo" title="速度（BPM）">
+            <DragNumber value={project.bpm} min={20} max={400} step={1} sensitivity={0.3}
+              format={(v) => v.toFixed(v % 1 ? 2 : 0)} className="tempo-num"
+              onChange={(v) => st.dispatch([{ type: 'project/update', patch: { bpm: v } }], { coalesce: 'bpm' })} />
+            <span className="tempo-label">BPM</span>
+          </div>
+          <TapTempo />
+          <button className={`tbtn metro ${metronome ? 'active' : ''}`} title="节拍器" onClick={st.toggleMetronome}><Icon name="metronome" /></button>
+          <button className="tbtn mic" title="录制音频（麦克风）：打开录音器" aria-label="录制音频" onClick={() => st.toggleWindow('recorder')}>
+            <Icon name="mic" size={16} />
+          </button>
+          <TimeDisplay />
+        </div>
       </div>
 
-      <div className="tb-group">
-        <Knob value={master.volume} min={0} max={1.25} def={1} size={28} title={`Master volume ${Math.round(master.volume * 100)}%`}
-          onChange={(v) => st.dispatch([{ type: 'mixer/update', index: 0, patch: { volume: v } }], { coalesce: 'mastervol' })} />
-        <Visualizer />
-      </div>
+      <div className="tb-side tb-right">
+        <div className="tb-group pattern-pick">
+          <button className="tbtn small pat-nav" title="上一个片段" onClick={() => {
+            const i = project.patterns.findIndex((p) => p.id === selectedPatternId);
+            if (i > 0) st.selectPattern(project.patterns[i - 1].id);
+          }}>‹</button>
+          <select className="ui-select pattern-select" value={selectedPatternId || ''} onChange={(e) => st.selectPattern(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()} title="当前片段">
+            {project.patterns.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <button className="tbtn small pat-nav" title="下一个片段" onClick={() => {
+            const i = project.patterns.findIndex((p) => p.id === selectedPatternId);
+            if (i < project.patterns.length - 1) st.selectPattern(project.patterns[i + 1].id);
+          }}>›</button>
+          <button className="tbtn small" title="片段选项：新建／克隆／重命名／删除" onClick={patternMenu}><Icon name="dots" size={14} /></button>
+        </div>
 
-      <div className="tb-group windows">
-        <button className={`tbtn win ${browserOpen ? 'active' : ''}`} title="Browser (Alt+F8)" onClick={() => st.setPref('browserOpen', !browserOpen)}><Icon name="folder" /></button>
-        {winBtn('playlist', 'playlist', 'Playlist', 'F5')}
-        {winBtn('channelRack', 'rack', 'Channel rack', 'F6')}
-        {winBtn('pianoRoll', 'piano', 'Piano roll', 'F7')}
-        {winBtn('mixer', 'mixer', 'Mixer', 'F9')}
-        {winBtn('channelSettings', 'sliders', 'Channel settings', 'F8')}
-        <button className={`tbtn win ${windows.spatial?.open ? 'active' : ''}`} title="Spatial mixer (3D / Atmos-style)" onClick={() => st.toggleWindow('spatial')}><Icon name="spatial" size={16} /></button>
-        <button className={`tbtn win ${windows.settings?.open ? 'active' : ''}`} title="Settings" onClick={() => st.toggleWindow('settings')}><Icon name="gear" /></button>
-      </div>
+        <div className="tb-group">
+          <Knob value={master.volume} min={0} max={1.25} def={1} size={28} title={`主音量 ${Math.round(master.volume * 100)}%`}
+            onChange={(v) => st.dispatch([{ type: 'mixer/update', index: 0, patch: { volume: v } }], { coalesce: 'mastervol' })} />
+          <Visualizer />
+        </div>
 
-      <div className="tb-group status">
-        <button className={`tbtn small ${midiStatus ? 'active' : ''}`} title={midiStatus || 'Connect MIDI keyboard'} onClick={connectMidi}><Icon name="midi" /></button>
-        <span className={`claude-indicator ${claudeActive ? 'active' : ''}`} title={claudeActive ? 'Claude is editing…' : 'Claude (MCP) edits show up here live'}>
-          <Icon name="claude" size={14} />{claudeActive ? 'Claude is editing…' : ''}
-        </span>
-        <span className={`conn ${connected ? 'ok' : 'down'}`} title={connected ? 'Connected to server (live sync)' : 'Disconnected — reconnecting…'} />
-        <button className="tbtn small about-btn" title={`About ${APP_NAME} (version ${APP_VERSION})`} aria-label={`About ${APP_NAME}`} data-testid="about-button" onClick={() => st.showAbout()}>
-          <Icon name="info" size={16} />
-        </button>
-        <button className="avatar" title={`${user?.displayName} — account menu`} onClick={userMenu} aria-label="Account menu">{initials}</button>
+        <div className="tb-group status">
+          {claudeActive && (
+            <span className="claude-indicator active" title="Claude 正在编辑…">
+              <Icon name="claude" size={14} />Claude 正在编辑…
+            </span>
+          )}
+          <span className={`conn ${connected ? 'ok' : 'down'}`} title={connected ? '已连接服务端（实时同步）' : '已断开——正在重连…'} />
+          <button className="avatar" title={`${user?.displayName} — 账号菜单`} onClick={userMenu} aria-label="账号菜单">{initials}</button>
+        </div>
       </div>
     </div>
   );

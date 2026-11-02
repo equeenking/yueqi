@@ -30,7 +30,7 @@ export async function exportSpatial(job, { jobId, sync } = {}) {
     mixer: current.mixer.map((m) => (m.solo ? { ...m, solo: false } : m))
   };
   const objects = spatialObjects(project);
-  if (!objects.length) throw new Error('No 3D objects: enable 3D on at least one mixer insert that goes to the master (Spatial window or place_object)');
+  if (!objects.length) throw new Error('没有三维对象：请至少给一个通往主输出的混音通道条启用三维（空间窗口或 place_object）');
   if (spec.mode === 'objects' && objects.length > MAX_SPATIAL_OBJECTS) throw new Error(`At most ${MAX_SPATIAL_OBJECTS} objects can be exported as object tracks (this mix has ${objects.length})`);
   const song = job.mode !== 'pattern' && songLength(project) > 0;
   const pattern = project.patterns.find((p) => p.id === job.patternId) || project.patterns[0];

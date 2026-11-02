@@ -1,5 +1,5 @@
 // The recorder: record from a microphone alone or while the song/pattern plays (count-in, metronome, latency
-// compensation). Every take is saved as a WAV sample in the "Recordings" folder and, over the song, placed on the
+// compensation). Every take is saved as a WAV sample in the "录音" folder and, over the song, placed on the
 // playlist where it was recorded. From the take list a take opens in the wave editor (or straight in its Pitch tab).
 import { useState, useRef, useEffect } from 'react';
 import { PPQ, beatsPerBar, ticksPerBar, songLength, uid, clipLength, encodeWav, MAX_TRACKS } from '@greanteadawy/core';
@@ -122,7 +122,7 @@ export function Recorder() {
     setPhase('arming');
     try {
       const eng = await st.unlockAudio();
-      if (!eng) throw new Error('Audio is not available in this browser');
+      if (!eng) throw new Error('此浏览器不支持音频');
       mic?.close();
       const m = await MicSession.open(eng.ctx, { deviceId: o.deviceId, channels: o.channels, echoCancellation: o.echo, noiseSuppression: o.noise, autoGainControl: o.agc });
       if (!openRef.current) {
@@ -187,12 +187,12 @@ export function Recorder() {
     if (r.mode !== 'none') {
       s.stop();
       eng.metronome = s.metronome;
-      if (s.mode !== r.prevMode) useStore.setState({ mode: r.prevMode }); // "over the pattern" switched to PAT
+      if (s.mode !== r.prevMode) useStore.setState({ mode: r.prevMode }); // "覆盖当前片段" switched to PAT
     }
     let take = null;
     try {
       const raw = await mic.stop();
-      if (!raw) throw new Error('Nothing was recorded (no audio from the input)');
+      if (!raw) throw new Error('没有录到声音（输入没有音频）');
       // line the take up with what the performer heard: output + input latency (+ the user's fine offset)
       let from = 0;
       if (r.t0 !== null) {
@@ -202,7 +202,7 @@ export function Recorder() {
       const channels = raw.channels.map((c) => c.slice(from));
       const clip = { sampleRate: raw.sampleRate, channels };
       const n = clipLength(clip);
-      if (n < raw.sampleRate * 0.1) throw new Error(r.t0 !== null && from > 0 ? 'The take was stopped during the count-in' : 'The take is too short');
+      if (n < raw.sampleRate * 0.1) throw new Error(r.t0 !== null && from > 0 ? '预备拍期间就停止了录音' : '录音太短');
       const fade = Math.min(n, Math.round(raw.sampleRate * 0.003));
       for (const c of channels) for (let i = 0; i < fade; i++) { c[i] *= i / fade; c[n - 1 - i] *= i / fade; }
       const p = useStore.getState().project;
@@ -241,10 +241,10 @@ export function Recorder() {
         ops.push({ type: 'clip/add', clips: [{ id: uid('clip'), kind: 'audio', refId: item.id, track, start: take.place, length }] });
         placed = useStore.getState().dispatch(ops) ? track + 1 : false;
       }
-      if (!placed) why = ' — not placed: no free playlist track there';
+      if (!placed) why = ' — 未放置：那里没有空闲的播放列表轨道';
     }
     setTakes((t) => [{ id: item.id, name: item.name, seconds: take.seconds, placed }, ...t]);
-    st.toast(`Saved ${item.name}${placed ? ` on track ${placed}` : why}`, why ? 'info' : 'success', why ? 4000 : 2000);
+    st.toast(`已保存「${item.name}」${placed ? `，放在轨道 ${placed}` : why}`, why ? 'info' : 'success', why ? 4000 : 2000);
     return item;
   }
 
@@ -261,7 +261,7 @@ export function Recorder() {
     }
   };
   const discard = async (t) => {
-    if (await st.confirm({ title: `Discard "${t.name}"?`, message: 'This take was never saved: discarding it loses the recording. Download keeps a copy as a WAV file.', danger: true, okLabel: 'Discard' })) {
+    if (await st.confirm({ title: `Discard "${t.name}"?`, message: '这条录音从未保存：丢弃就再也找不回来。若想留一份，先下载成 WAV 文件。', danger: true, okLabel: '丢弃' })) {
       setTakes((l) => l.filter((x) => x.id !== t.id));
     }
   };
@@ -275,14 +275,14 @@ export function Recorder() {
   };
 
   const alongOptions = [
-    { value: 'song', label: 'Over the song (from the song start marker)' },
-    { value: 'pattern', label: 'Over the current pattern (looping)' },
-    { value: 'none', label: 'Microphone only' }
+    { value: 'song', label: '覆盖整首歌（从歌曲起始标记开始）' },
+    { value: 'pattern', label: '覆盖当前片段（循环）' },
+    { value: 'none', label: '仅麦克风' }
   ];
   const latencyMs = mic ? Math.round(((mic.ctx.outputLatency || 0) + (mic.ctx.baseLatency || 0) + mic.inputLatency) * 1000) : null;
 
   return (
-    <Window name="recorder" title="Record audio" icon="mic" minW={340} minH={300} className="recorder">
+    <Window name="recorder" title="录制音频" icon="mic" minW={340} minH={300} className="recorder">
       {/* focusable, so a click on a blank part keeps Space here (not on the page, where it plays the song) */}
       <div className="rec-body" data-testid="recorder" tabIndex={-1} data-keyboard-home onKeyDown={(e) => {
         // Space here belongs to the recorder, not the studio's transport: a focused button is pressed (Record/Stop),
@@ -295,82 +295,82 @@ export function Recorder() {
       }}>
         {unsupported ? <p className="rec-error" role="alert">{unsupported}</p> : null}
         <div className="rec-row">
-          <label className="rec-field grow">Input
-            <Select value={opts.deviceId} disabled={recording} title="Microphone / audio input"
-              options={[{ value: '', label: 'Default input' }, ...devices.map((d) => ({ value: d.deviceId, label: d.label }))]}
+          <label className="rec-field grow">输入
+            <Select value={opts.deviceId} disabled={recording} title="麦克风／音频输入"
+              options={[{ value: '', label: '默认输入' }, ...devices.map((d) => ({ value: d.deviceId, label: d.label }))]}
               onChange={(v) => change({ deviceId: v })} />
           </label>
-          <label className="rec-field">Channels
-            <Select value={String(opts.channels)} disabled={recording} options={[{ value: '1', label: 'Mono' }, { value: '2', label: 'Stereo' }]} onChange={(v) => change({ channels: Number(v) })} />
+          <label className="rec-field">声道
+            <Select value={String(opts.channels)} disabled={recording} options={[{ value: '1', label: '单声道' }, { value: '2', label: '立体声' }]} onChange={(v) => change({ channels: Number(v) })} />
           </label>
         </div>
         {!mic ? (
           <button className="btn primary rec-enable" disabled={!!unsupported || phase === 'arming'} onClick={() => enable()}>
-            <Icon name="mic" size={14} /> {phase === 'arming' ? 'Waiting for the microphone…' : 'Enable microphone'}
+            <Icon name="mic" size={14} /> {phase === 'arming' ? '正在等待麦克风…' : '启用麦克风'}
           </button>
         ) : (
-          <div className="rec-meter" ref={meterRef} role="meter" aria-label={`Input level (${mic.label})`} aria-valuemin={-60} aria-valuemax={0} title={mic.label}>
+          <div className="rec-meter" ref={meterRef} role="meter" aria-label={`输入电平（${mic.label}）`} aria-valuemin={-60} aria-valuemax={0} title={mic.label}>
             <i className="lvl" /><i className="hold" />
           </div>
         )}
         <div className="rec-row">
-          <label className="rec-field grow">Play along
+          <label className="rec-field grow">跟随播放
             <Select value={opts.along} options={alongOptions} onChange={(v) => set({ along: v })} />
           </label>
         </div>
         <div className="rec-row checks">
-          <label title="Clicks before the transport starts"><span>Count-in</span>
-            <Select value={String(opts.countIn)} disabled={opts.along === 'none'} options={[{ value: '0', label: 'off' }, { value: '1', label: '1 bar' }, { value: '2', label: '2 bars' }]} onChange={(v) => set({ countIn: Number(v) })} />
+          <label title="开始前的预备拍"><span>预备拍</span>
+            <Select value={String(opts.countIn)} disabled={opts.along === 'none'} options={[{ value: '0', label: '不预备' }, { value: '1', label: '1 小节' }, { value: '2', label: '2 小节' }]} onChange={(v) => set({ countIn: Number(v) })} />
           </label>
-          <label><input type="checkbox" checked={opts.metronome} disabled={opts.along === 'none'} onChange={(e) => set({ metronome: e.target.checked })} /> Metronome</label>
-          <label title="Put each take on the playlist where it was recorded"><input type="checkbox" checked={opts.place} disabled={opts.along !== 'song'} onChange={(e) => set({ place: e.target.checked })} /> Place on playlist</label>
-          <label title="Hear yourself — use headphones, or it will feed back"><input type="checkbox" checked={opts.monitor} onChange={(e) => set({ monitor: e.target.checked })} /> Monitor</label>
+          <label><input type="checkbox" checked={opts.metronome} disabled={opts.along === 'none'} onChange={(e) => set({ metronome: e.target.checked })} /> 节拍器</label>
+          <label title="把每条录音按录制位置放上播放列表"><input type="checkbox" checked={opts.place} disabled={opts.along !== 'song'} onChange={(e) => set({ place: e.target.checked })} /> 放到播放列表</label>
+          <label title="听到自己的声音——请戴耳机，否则会啸叫"><input type="checkbox" checked={opts.monitor} onChange={(e) => set({ monitor: e.target.checked })} /> 监听</label>
         </div>
         <details className="rec-advanced">
-          <summary>Input processing &amp; latency</summary>
+          <summary>输入处理与延迟</summary>
           <div className="rec-row checks">
-            <label title="For speakers without headphones; changes the sound"><input type="checkbox" checked={opts.echo} disabled={recording} onChange={(e) => change({ echo: e.target.checked })} /> Echo cancellation</label>
-            <label><input type="checkbox" checked={opts.noise} disabled={recording} onChange={(e) => change({ noise: e.target.checked })} /> Noise suppression</label>
-            <label><input type="checkbox" checked={opts.agc} disabled={recording} onChange={(e) => change({ agc: e.target.checked })} /> Auto gain</label>
+            <label title="给没有耳机的音箱用；会改变音色"><input type="checkbox" checked={opts.echo} disabled={recording} onChange={(e) => change({ echo: e.target.checked })} /> 回声消除</label>
+            <label><input type="checkbox" checked={opts.noise} disabled={recording} onChange={(e) => change({ noise: e.target.checked })} /> 噪声抑制</label>
+            <label><input type="checkbox" checked={opts.agc} disabled={recording} onChange={(e) => change({ agc: e.target.checked })} /> 自动增益</label>
           </div>
           <div className="rec-row">
-            <label className="rec-field" title="Added to the measured latency: raise it if takes land late, lower it if they land early">Offset (ms)
+            <label className="rec-field" title="加在实测延迟上：录音偏晚就调大，偏早就调小">偏移（毫秒）
               <input type="number" min="-500" max="500" step="1" value={opts.offsetMs} onChange={(e) => set({ offsetMs: Math.max(-500, Math.min(500, Number(e.target.value) || 0)) })} />
             </label>
-            <span className="muted rec-latency">{latencyMs !== null ? `Measured latency ≈ ${latencyMs} ms (compensated)` : 'Latency is measured once the microphone is on'}</span>
+            <span className="muted rec-latency">{latencyMs !== null ? `实测延迟 ≈ ${latencyMs} 毫秒（已补偿）` : '麦克风开启后会测量一次延迟'}</span>
           </div>
         </details>
         <div className="rec-transport">
           {recording || phase === 'saving' ? (
             // not disabled while saving: a disabled button drops the focus to the page, where Space plays the song
-            <button className="btn rec-btn stop" aria-disabled={phase === 'saving'} onClick={stopRecording}><Icon name="stop" size={14} /> {phase === 'saving' ? 'Saving…' : 'Stop'}</button>
+            <button className="btn rec-btn stop" aria-disabled={phase === 'saving'} onClick={stopRecording}><Icon name="stop" size={14} /> {phase === 'saving' ? '保存中…' : '停止'}</button>
           ) : (
-            <button className="btn rec-btn" disabled={!mic} onClick={record} aria-label="Record"><Icon name="record" size={14} /> Record</button>
+            <button className="btn rec-btn" disabled={!mic} onClick={record} aria-label="录音"><Icon name="record" size={14} /> 录音</button>
           )}
           <span className={`rec-time ${recording ? 'on' : ''}`} ref={timeRef} aria-live="off">{recording ? '' : '0:00.0'}</span>
-          <span className="muted">max {mmss(maxSec)}</span>
+          <span className="muted">最长 {mmss(maxSec)}</span>
         </div>
         {error && <p className="rec-error" role="alert">{error}</p>}
         <div className="rec-takes">
-          <div className="br-cat">Takes (saved in Samples → Recordings)</div>
-          {!takes.length && <p className="br-empty">No takes yet.</p>}
+          <div className="br-cat">录音（保存在 采样 → 录音）</div>
+          {!takes.length && <p className="br-empty">还没有录音。</p>}
           {takes.map((t) => (t.failed ? (
             <div key={t.id} className="br-item rec-take failed">
               <Icon name="warn" size={13} />
-              <span className="br-name" title="This take could not be saved">{t.name}</span>
+              <span className="br-name" title="这条录音无法保存">{t.name}</span>
               <span className="br-meta">{fmtTime(t.seconds)}</span>
-              <button className="btn tiny" disabled={!!t.saving} onClick={() => retry(t)}>{t.saving ? 'Saving…' : 'Retry'}</button>
-              <button className="btn tiny" title="Save the take as a WAV file on this computer" onClick={() => download(t)}>Download</button>
-              <button className="br-add" title="Discard this take" aria-label={`Discard ${t.name}`} onClick={() => discard(t)}><Icon name="trash" size={12} /></button>
+              <button className="btn tiny" disabled={!!t.saving} onClick={() => retry(t)}>{t.saving ? '保存中…' : '重试'}</button>
+              <button className="btn tiny" title="把这条录音另存为本机 WAV 文件" onClick={() => download(t)}>下载</button>
+              <button className="br-add" title="丢弃这条录音" aria-label={`Discard ${t.name}`} onClick={() => discard(t)}><Icon name="trash" size={12} /></button>
             </div>
           ) : (
             <div key={t.id} className="br-item rec-take">
               <Icon name="wave" size={13} />
-              <button className="br-name" title="Play" onClick={async () => { await st.unlockAudio(); getEngine()?.previewSample(t.id); }}>{t.name}</button>
+              <button className="br-name" title="播放" onClick={async () => { await st.unlockAudio(); getEngine()?.previewSample(t.id); }}>{t.name}</button>
               <span className="br-meta">{fmtTime(t.seconds)}{t.placed ? ` · track ${t.placed}` : ''}</span>
-              <button className="btn tiny" onClick={() => openSampleEditor(t.id, { tab: 'wave' })}>Edit</button>
-              <button className="btn tiny" title="Pitch correction" onClick={() => openSampleEditor(t.id, { tab: 'pitch' })}>Tune</button>
-              <button className="br-add" title="Delete take" aria-label={`Delete ${t.name}`} onClick={async () => {
+              <button className="btn tiny" onClick={() => openSampleEditor(t.id, { tab: 'wave' })}>编辑</button>
+              <button className="btn tiny" title="音高修正" onClick={() => openSampleEditor(t.id, { tab: 'pitch' })}>音高</button>
+              <button className="br-add" title="删除录音" aria-label={`Delete ${t.name}`} onClick={async () => {
                 const s = useStore.getState().samples.find((x) => x.id === t.id);
                 if (!s) return setTakes((l) => l.filter((x) => x.id !== t.id));
                 try { if (await deleteSamplesWithWarning([s])) setTakes((l) => l.filter((x) => x.id !== t.id)); } catch (e) { st.toast(e.message, 'error'); }

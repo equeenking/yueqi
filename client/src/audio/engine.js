@@ -4,7 +4,7 @@
 import {
   PPQ, ticksPerBar, patternLength, songLength, patternNotesInRange, songNotesInRange,
   songAudioInRange, songAudioCovering, songAutomationInRange, automationValueAt, swingTicks,
-  EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults
+  EFFECTS, getChannel, isSpatialObject, SPATIAL_PARAMS, spatialFromNorm, instrumentDefaults, INSTRUMENTS
 } from '@greanteadawy/core';
 import { playNote, Voice } from './instruments.js';
 import { prewarmModels, prewarmRange } from './modelPool.js';
@@ -113,7 +113,7 @@ export class AudioEngine {
 
   /** Render every physical-model note the project plays that isn't cached yet (resolves when they are). */
   prewarmModels(project = this.project) {
-    return project ? prewarmModels(project, this.ctx.sampleRate, { pin: this.realtime }).catch((e) => console.warn('model prewarm failed', e)) : Promise.resolve();
+    return project ? prewarmModels(project, this.ctx.sampleRate, { pin: this.realtime }).catch((e) => console.warn('模型预热失败', e)) : Promise.resolve();
   }
 
   setBpm(bpm) {
@@ -363,7 +363,7 @@ export class AudioEngine {
 
   /**
    * The sample library changed: note each sample's revision, drop decoded audio whose sample was replaced (the
-   * wave editor's "Replace original"), and load what the project needs again.
+   * wave editor's "替换原采样"), and load what the project needs again.
    */
   syncSampleLibrary(list) {
     noteSampleRevs(list);
@@ -437,10 +437,11 @@ export class AudioEngine {
     return v;
   }
 
-  /** Live note (computer keyboard / MIDI / piano roll click). Returns a handle for noteOff. */
-  noteOn(channelId, key, velocity = 0.8) {
+  /** Live note (computer keyboard / MIDI / piano roll click). Returns a handle for noteOff.
+   *  `at` schedules the note at an AudioContext time (the arpeggiator's lookahead) instead of now. */
+  noteOn(channelId, key, velocity = 0.8, at = null) {
     this.prewarmChannel(channelId, key, velocity);
-    return this.triggerNote(channelId, key, velocity, this.ctx.currentTime + 0.005, null, { force: true });
+    return this.triggerNote(channelId, key, velocity, at ?? this.ctx.currentTime + 0.005, null, { force: true });
   }
 
   /**
@@ -464,14 +465,20 @@ export class AudioEngine {
     prewarmRange(this.ctx.sampleRate, spec, k - 7, k + 7, layer);
   }
 
-  noteOff(voice) {
+  noteOff(voice, at = null) {
     if (!voice) return;
-    voice.noteEnd = this.ctx.currentTime;
-    voice.release(this.ctx.currentTime);
+    const t = at ?? this.ctx.currentTime;
+    voice.noteEnd = t;
+    voice.release(t);
   }
 
   preview(channelId, key, velocity = 0.8, duration = 0.3) {
     return this.triggerNote(channelId, key, velocity, this.ctx.currentTime + 0.005, duration, { force: true });
+  }
+
+  /** One scheduled one-shot note (arpeggiator / autoplay): plays at `at` and ends by itself after `duration` s. */
+  arpNote(channelId, key, velocity = 0.8, at, duration = 0.4) {
+    return this.triggerNote(channelId, key, velocity, at, duration, { force: true });
   }
 
   /** Audition a sample from the browser (one at a time; a new preview or Stop cuts the previous one). */
@@ -496,6 +503,31 @@ export class AudioEngine {
   stopPreview() {
     if (this.previewVoice && !this.previewVoice.done) this.previewVoice.kill(this.ctx.currentTime);
     this.previewVoice = null;
+  }
+
+  /**
+   * Audition an instrument straight from the browser, no channel needed: a one-off voice with the instrument's
+   * default (or named preset) params. Real sample-bank recordings are used when the bank is loaded, else the
+   * synth engine plays. One at a time — a new audition cuts the previous one.
+   */
+  previewInstrument(kind, preset = null) {
+    const def = INSTRUMENTS[kind];
+    if (!def || kind === 'plugin') return;
+    this.stopPreview();
+    let instrument;
+    try {
+      const presetName = preset && def.presets?.[preset] ? preset : Object.keys(def.presets || {})[0];
+      const patch = presetName ? def.presets[presetName] : {};
+      instrument = { kind, preset: presetName, params: { ...instrumentDefaults(kind), ...patch } };
+    } catch { return; }
+    const v = playNote(this.ctx, this.inserts[0]?.input || this.out, instrument, {
+      time: this.ctx.currentTime + 0.02, duration: 0.9, key: def.defaultKey ?? 60, velocity: 0.85
+    });
+    if (!v) return;
+    v.channelId = '__preview';
+    this.voices.add(v);
+    this.previewVoice = v;
+    v.onDone = () => { this.voices.delete(v); if (this.previewVoice === v) this.previewVoice = null; };
   }
 
   /**

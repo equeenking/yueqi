@@ -170,7 +170,7 @@ export function WaveEditor() {
   // the sample was replaced (by Claude or another tab) since this audio was loaded, or deleted
   const stale = !!doc && !!sample && doc.id === sample.id && doc.rev !== (sample.rev || 1);
   const deleted = !!doc && !sample;
-  const name = sample?.name || doc?.name || 'Sample';
+  const name = sample?.name || doc?.name || '采样';
 
   useEffect(() => { useStore.setState({ editorDirty: dirty }); }, [dirty]);
   // closing the browser tab with unsaved edits asks first
@@ -305,7 +305,7 @@ export function WaveEditor() {
     setBusy(`${label}…`);
     try {
       const r = await editClip(clip, { ...ranged, ...op });
-      if (docRef.current?.clip !== clip) return st.toast(`${label}: the audio changed meanwhile, so the result was dropped`, 'warn');
+      if (docRef.current?.clip !== clip) return st.toast(`${label}：这期间音频变了，结果已丢弃`, 'warn');
       play?.stop();
       commit(r.clip, label);
       setSel(after ? after(r.clip) : fitSel(r.clip, sel));
@@ -331,15 +331,15 @@ export function WaveEditor() {
     setView(viewAfter(clipLength(next), label === 'Trim'));
   };
 
-  const copy = () => { if (hasSel) { clipboard = sliceClip(clip, sel.start, sel.end); st.toast(`Copied ${fmtTime((sel.end - sel.start) / sr)}`, 'info', 1200); } };
-  const cut = () => { if (!hasSel || busy) return; copy(); syncEdit(deleteRange(clip, sel.start, sel.end), 'Cut', { start: sel.start, end: sel.start }); };
-  const del = () => { if (hasSel) syncEdit(deleteRange(clip, sel.start, sel.end), 'Delete', { start: sel.start, end: sel.start }); };
-  const crop = () => { if (hasSel) syncEdit(cropClip(clip, sel.start, sel.end), 'Trim', { start: 0, end: 0 }); };
+  const copy = () => { if (hasSel) { clipboard = sliceClip(clip, sel.start, sel.end); st.toast(`已复制 ${fmtTime((sel.end - sel.start) / sr)}`, 'info', 1200); } };
+  const cut = () => { if (!hasSel || busy) return; copy(); syncEdit(deleteRange(clip, sel.start, sel.end), '剪切', { start: sel.start, end: sel.start }); };
+  const del = () => { if (hasSel) syncEdit(deleteRange(clip, sel.start, sel.end), '删除', { start: sel.start, end: sel.start }); };
+  const crop = () => { if (hasSel) syncEdit(cropClip(clip, sel.start, sel.end), '裁切', { start: 0, end: 0 }); };
   const paste = () => {
-    if (!clipboard) return st.toast('Nothing copied yet', 'warn', 1500);
+    if (!clipboard) return st.toast('还没有复制任何内容', 'warn', 1500);
     const next = insertClip(clip, sel.start, clipboard, hasSel ? sel.end : undefined);
     const added = clipLength(next) - (len - (hasSel ? sel.end - sel.start : 0));
-    syncEdit(next, 'Paste', { start: sel.start, end: sel.start + added });
+    syncEdit(next, '粘贴', { start: sel.start, end: sel.start + added });
   };
   const undo = () => {
     if (!doc?.past.length || busy) return;
@@ -371,39 +371,39 @@ export function WaveEditor() {
     const v = await st.prompt({ title, label, value: String(value) });
     if (v === null || v === undefined || v === '') return null;
     const n = Number(String(v).replace(',', '.'));
-    if (!Number.isFinite(n) || (check && !check(n))) { st.toast(`"${v}" is not a valid value`, 'error'); return null; }
+    if (!Number.isFinite(n) || (check && !check(n))) { st.toast(`「${v}」不是有效的值`, 'error'); return null; }
     return n;
   };
   const newLength = (factor) => (c) => (hasSel ? { start: sel.start, end: sel.start + Math.round((sel.end - sel.start) * factor) } : fitSel(c, { start: 0, end: 0 }));
   const process = {
-    fadeIn: () => runOp({ op: 'fade_in', curve: 'exp', ...(hasSel ? {} : { end: len / sr }) }, 'Fade in'),
-    fadeOut: () => runOp({ op: 'fade_out', curve: 'exp', ...(hasSel ? {} : { start: 0 }) }, 'Fade out'),
-    normalize: () => runOp({ op: 'normalize', peakDb: -1 }, 'Normalise'),
-    reverse: () => runOp({ op: 'reverse' }, 'Reverse'),
-    silence: () => hasSel && runOp({ op: 'silence' }, 'Silence'),
-    gain: async () => { const db = await ask('Change level', 'Gain in dB (-48 … 48)', 3, (n) => Math.abs(n) <= 48); if (db !== null) runOp({ op: 'gain', db }, `Gain ${db > 0 ? '+' : ''}${db} dB`); },
-    invert: () => runOp({ op: 'invert' }, 'Invert'),
-    removeDc: () => runOp({ op: 'remove_dc' }, 'Remove DC'),
-    trimSilence: () => runOp({ op: 'trim_silence' }, 'Trim silence', () => ({ start: 0, end: 0 })),
-    mono: () => runOp({ op: 'mono' }, 'Make mono'),
-    stereo: () => runOp({ op: 'stereo' }, 'Make stereo'),
-    speed: async () => { const r = await ask('Change speed (and pitch)', 'Rate: 2 = twice as fast and an octave up (0.25 … 4)', 1.5, (n) => n >= 0.25 && n <= 4); if (r !== null) runOp({ op: 'speed', rate: r }, `Speed ×${r}`, newLength(1 / r)); },
-    stretch: async () => { const r = await ask('Time stretch (keeps the pitch)', 'Rate: 2 = twice as fast, 0.5 = twice as long (0.25 … 4)', 0.8, (n) => n >= 0.25 && n <= 4); if (r !== null) runOp({ op: 'stretch', rate: r }, `Stretch ×${r}`, newLength(1 / r)); },
-    pitch: async () => { const s = await ask('Pitch shift (keeps the length)', 'Semitones (-24 … 24, decimals for cents)', 2, (n) => Math.abs(n) <= 24 && n !== 0); if (s !== null) runOp({ op: 'pitch_shift', semitones: s }, `Pitch ${s > 0 ? '+' : ''}${s} st`); }
+    fadeIn: () => runOp({ op: 'fade_in', curve: 'exp', ...(hasSel ? {} : { end: len / sr }) }, '淡入'),
+    fadeOut: () => runOp({ op: 'fade_out', curve: 'exp', ...(hasSel ? {} : { start: 0 }) }, '淡出'),
+    normalize: () => runOp({ op: 'normalize', peakDb: -1 }, '归一'),
+    reverse: () => runOp({ op: 'reverse' }, '反向'),
+    silence: () => hasSel && runOp({ op: 'silence' }, '静音'),
+    gain: async () => { const db = await ask('调整电平', '增益（分贝，-48 … 48）', 3, (n) => Math.abs(n) <= 48); if (db !== null) runOp({ op: 'gain', db }, `Gain ${db > 0 ? '+' : ''}${db} dB`); },
+    invert: () => runOp({ op: 'invert' }, '反相'),
+    removeDc: () => runOp({ op: 'remove_dc' }, '去除直流偏置'),
+    trimSilence: () => runOp({ op: 'trim_silence' }, '裁掉静音', () => ({ start: 0, end: 0 })),
+    mono: () => runOp({ op: 'mono' }, '转为单声道'),
+    stereo: () => runOp({ op: 'stereo' }, '转为立体声'),
+    speed: async () => { const r = await ask('改变速度（连同音高）', 'Rate: 2 = twice as fast and an octave up (0.25 … 4)', 1.5, (n) => n >= 0.25 && n <= 4); if (r !== null) runOp({ op: 'speed', rate: r }, `Speed ×${r}`, newLength(1 / r)); },
+    stretch: async () => { const r = await ask('时间伸缩（保持音高）', 'Rate: 2 = twice as fast, 0.5 = twice as long (0.25 … 4)', 0.8, (n) => n >= 0.25 && n <= 4); if (r !== null) runOp({ op: 'stretch', rate: r }, `Stretch ×${r}`, newLength(1 / r)); },
+    pitch: async () => { const s = await ask('移调（保持长度）', '半音数（-24 … 24，可用小数表示音分）', 2, (n) => Math.abs(n) <= 24 && n !== 0); if (s !== null) runOp({ op: 'pitch_shift', semitones: s }, `Pitch ${s > 0 ? '+' : ''}${s} st`); }
   };
   const moreMenu = () => [
-    { header: hasSel ? 'Selection' : 'Whole sample' },
-    { label: 'Gain…', onClick: process.gain },
-    { label: 'Silence', disabled: !hasSel, onClick: process.silence },
-    { label: 'Invert polarity', onClick: process.invert },
-    { label: 'Remove DC / rumble', onClick: process.removeDc },
-    { label: 'Change speed…', onClick: process.speed },
-    { label: 'Time stretch…', onClick: process.stretch },
-    { label: 'Pitch shift…', onClick: process.pitch },
+    { header: hasSel ? '选区' : '整个采样' },
+    { label: '增益…', onClick: process.gain },
+    { label: '静音', disabled: !hasSel, onClick: process.silence },
+    { label: '极性反相', onClick: process.invert },
+    { label: '去除直流／低频隆隆声', onClick: process.removeDc },
+    { label: '改变速度…', onClick: process.speed },
+    { label: '时间伸缩…', onClick: process.stretch },
+    { label: '移调…', onClick: process.pitch },
     '-',
-    { header: 'Whole sample' },
-    { label: 'Trim silence at both ends', onClick: process.trimSilence },
-    clip?.channels.length === 2 ? { label: 'Make mono', onClick: process.mono } : { label: 'Make stereo', onClick: process.stereo }
+    { header: '整个采样' },
+    { label: '裁掉首尾静音', onClick: process.trimSilence },
+    clip?.channels.length === 2 ? { label: '转为单声道', onClick: process.mono } : { label: '转为立体声', onClick: process.stereo }
   ];
   const menuAt = (e, items) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -504,10 +504,10 @@ export function WaveEditor() {
 
   // ---- saving: what was on screen when Save was clicked is what gets saved (an edit that lands during the upload stays
   // unsaved), and only into that document — the editor may show another sample, or be closed, by the time it finishes
-  const SAVING = 'Saving…';
+  const SAVING = '保存中…';
   const canStillSave = (snap) => {
-    if (docRef.current?.key !== snap.key) { st.toast('The editor shows other audio now, so nothing was saved', 'warn'); return false; }
-    if (busyRef.current) { st.toast(`Wait for "${busyRef.current.replace(/…$/, '')}" to finish, then save again`, 'warn'); return false; }
+    if (docRef.current?.key !== snap.key) { st.toast('编辑器现在显示的是别的音频，因此没有保存', 'warn'); return false; }
+    if (busyRef.current) { st.toast(`等「${busyRef.current.replace(/…$/, '')}」做完再保存`, 'warn'); return false; }
     return true;
   };
   // the Save buttons are disabled while saving: the focus moves to the editor (from a disabled button it would drop to
@@ -526,15 +526,15 @@ export function WaveEditor() {
   const saveAsNew = async () => {
     const snap = docRef.current;
     if (!snap?.clip || busy) return;
-    if (!clipLength(snap.clip)) return st.toast('The sample is empty: undo, or paste some audio first', 'warn');
-    const newName = await st.prompt({ title: 'Save as a new sample', label: 'Name', value: `${Array.from(name).slice(0, 75).join('')} edit` });
+    if (!clipLength(snap.clip)) return st.toast('采样是空的：请撤销，或先粘贴一些音频', 'warn');
+    const newName = await st.prompt({ title: '另存为新采样', label: '名称', value: `${Array.from(name).slice(0, 75).join('')} edit` });
     if (!newName?.trim() || !canStillSave(snap)) return;
     startSaving();
     try {
       const item = await saveClipAsSample(snap.clip, { name: newName.trim(), folderId: sample?.folderId ?? null });
       setDoc((d) => (d?.key === snap.key ? { ...d, id: item.id, name: item.name, rev: item.rev || 1, savedId: snap.stateId } : d));
       if (docRef.current?.key === snap.key) useStore.setState({ editSampleId: item.id });
-      st.toast(`Saved as "${item.name}"`, 'success', 1800);
+      st.toast(`已另存为「${item.name}」`, 'success', 1800);
     } catch (e) {
       st.toast(e.message, 'error');
     } finally {
@@ -545,19 +545,19 @@ export function WaveEditor() {
     const snap = docRef.current;
     const target = sample;
     if (!snap?.clip || !target || busy) return;
-    if (!clipLength(snap.clip)) return st.toast('The sample is empty: undo, or paste some audio first', 'warn');
+    if (!clipLength(snap.clip)) return st.toast('采样是空的：请撤销，或先粘贴一些音频', 'warn');
     let usage = [];
     try { usage = (await api.sampleUsage([target.id]))[target.id] || []; } catch { /* checked again by the server */ }
     const where = usage.map((u) => `• ${u.projectName}${u.channels.length ? ` — channel${u.channels.length > 1 ? 's' : ''} ${u.channels.join(', ')}` : ''}${u.clips ? ` — ${u.clips} clip${u.clips > 1 ? 's' : ''}` : ''}`).join('\n');
     const message = (stale ? 'It was replaced elsewhere (by Claude or another tab) since you opened it: that version would be overwritten too.\n\n' : '') + (usage.length
-      ? `It is used in ${usage.length} project${usage.length > 1 ? 's' : ''}, which will all play the edited audio:\n${where}\n\nThe original audio can't be brought back. Use "Save as new" to keep both.`
-      : `No project uses it yet. The original audio can't be brought back. Use "Save as new" to keep both.`);
-    if (!(await st.confirm({ title: `Replace "${target.name}" with the edited audio?`, message, danger: true, okLabel: 'Replace original' })) || !canStillSave(snap)) return;
+      ? `It is used in ${usage.length} project${usage.length > 1 ? 's' : ''}, which will all play the edited audio:\n${where}\n\nThe original audio can't be brought back. Use "另存为新采样" to keep both.`
+      : `目前没有工程在用它的原始音频，替换后找不回来。想两份都留，请用「另存为新采样」。`);
+    if (!(await st.confirm({ title: `Replace "${target.name}" with the edited audio?`, message, danger: true, okLabel: '替换原采样' })) || !canStillSave(snap)) return;
     startSaving();
     try {
       const item = await replaceSampleAudio(target, snap.clip);
       setDoc((d) => (d?.key === snap.key ? { ...d, rev: item.rev || 1, name: item.name, savedId: snap.stateId } : d));
-      st.toast(`Replaced "${item.name}"${usage.length ? ` in ${usage.length} project${usage.length > 1 ? 's' : ''}` : ''}`, 'success', 1800);
+      st.toast(`已替换「${item.name}」${usage.length ? `，涉及 ${usage.length} 个工程` : ''}`, 'success', 1800);
     } catch (e) {
       st.toast(e.status === 404 ? `"${target.name}" was deleted meanwhile, so it wasn't replaced${docRef.current?.key === snap.key ? ' (Save as new keeps this audio)' : ''}` : e.message, e.status === 404 ? 'warn' : 'error');
     } finally {
@@ -565,13 +565,13 @@ export function WaveEditor() {
     }
   };
   const onClose = async () => {
-    if (saving.current) return st.toast('Still saving — close the editor when it has finished', 'warn');
-    if (dirty && !(await st.confirm({ title: 'Discard unsaved edits?', message: `Your changes to "${name}" have not been saved.`, danger: true, okLabel: 'Discard' }))) return;
+    if (saving.current) return st.toast('还在保存 — 等保存完再关闭编辑器', 'warn');
+    if (dirty && !(await st.confirm({ title: '丢弃未保存的修改？', message: `Your changes to "${name}" have not been saved.`, danger: true, okLabel: '丢弃' }))) return;
     st.closeWindow('waveEditor');
   };
 
   const tabs = (
-    <div className="we-tabs" role="tablist" aria-label="Editor view" onKeyDown={(e) => {
+    <div className="we-tabs" role="tablist" aria-label="编辑视图" onKeyDown={(e) => {
       // the tabs live in the title bar: Space/Enter press them (not the studio's play), ←/→ switch
       if (e.key === ' ' || e.key === 'Enter') { e.stopPropagation(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -582,57 +582,57 @@ export function WaveEditor() {
         requestAnimationFrame(() => list.querySelector('[aria-selected="true"]')?.focus());
       }
     }}>
-      {[['wave', 'Wave'], ['pitch', 'Pitch']].map(([k, label]) => (
+      {[['wave', '波形'], ['pitch', '音高']].map(([k, label]) => (
         // one tab stop for the group (←/→ move between tabs); a tab pressed from the keyboard keeps the focus
         <button key={k} role="tab" aria-selected={tab === k} tabIndex={tab === k ? 0 : -1} className={tab === k ? 'on' : ''} onClick={(e) => { useStore.setState({ editTab: k }); if (e.detail !== 0) keepFocus(); }}>{label}</button>
       ))}
     </div>
   );
-  const title = sample || doc ? `Edit — ${name}${dirty ? ' •' : ''}` : 'Wave editor';
+  const title = sample || doc ? `Edit — ${name}${dirty ? ' •' : ''}` : '波形编辑器';
   const selSec = hasSel ? (sel.end - sel.start) / sr : 0;
 
   return (
     <Window name="waveEditor" title={title} icon="wave" toolbar={tabs} minW={420} minH={300} className="wave-editor" onClose={onClose}>
       {!sampleId || (!sample && !doc) ? (
-        <p className="empty-hint">{sampleId ? 'This sample was deleted.' : 'Open a sample from the Browser (Samples → ⋯ → Edit in wave editor).'}</p>
+        <p className="empty-hint">{sampleId ? '此采样已被删除。' : '请从浏览器打开采样（采样 → ⋯ → 在波形编辑器中编辑）。'}</p>
       ) : load.status === 'error' ? (
         <p className="empty-hint error">Could not open the sample: {load.error}</p>
       ) : !clip ? (
-        <p className="empty-hint">Loading…</p>
+        <p className="empty-hint">载入中…</p>
       ) : (
-        <div className="we-body" ref={bodyRef} tabIndex={0} onKeyDown={onKeyDown} aria-label="Wave editor" data-testid="wave-editor" data-keyboard-home>
-          {deleted && <p className="we-banner" role="status">This sample was deleted. <b>Save as new</b> keeps this audio as a new sample.</p>}
+        <div className="we-body" ref={bodyRef} tabIndex={0} onKeyDown={onKeyDown} aria-label="波形编辑器" data-testid="wave-editor" data-keyboard-home>
+          {deleted && <p className="we-banner" role="status">此采样已被删除。 <b>另存为新采样</b> 把这段音频保留为新采样。</p>}
           {stale && busy !== SAVING && (dirty || doc.future.length > 0) && (
-            <p className="we-banner" role="status">&ldquo;{name}&rdquo; was replaced elsewhere (by Claude or another tab); {dirty ? 'your edits are on the older audio.' : 'this is the older audio (with its undo history).'}
-              <button className="btn tiny" disabled={!!busy} onClick={() => { pitchMemory.current = null; setReloadKey((k) => k + 1); }}>{dirty ? 'Reload (discard my edits)' : 'Reload'}</button>
+            <p className="we-banner" role="status">&ldquo;{name}&rdquo; was replaced elsewhere (by Claude or another tab); {dirty ? '你的修改在旧版音频上。' : '这是旧版音频（连同它的撤销历史）。'}
+              <button className="btn tiny" disabled={!!busy} onClick={() => { pitchMemory.current = null; setReloadKey((k) => k + 1); }}>{dirty ? '重新载入（丢弃我的修改）' : '重新加载'}</button>
             </p>
           )}
-          <div className="we-tools" role="toolbar" aria-label="Edit" onMouseDown={(e) => { if (e.target.closest('button')) { e.preventDefault(); bodyRef.current?.focus({ preventScroll: true }); } }}>
-            <button className="tbtn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!doc.past.length || !!busy} onClick={undo}><Icon name="undo" size={14} /></button>
-            <button className="tbtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!doc.future.length || !!busy} onClick={redo}><Icon name="redo" size={14} /></button>
+          <div className="we-tools" role="toolbar" aria-label="编辑" onMouseDown={(e) => { if (e.target.closest('button')) { e.preventDefault(); bodyRef.current?.focus({ preventScroll: true }); } }}>
+            <button className="tbtn" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={!doc.past.length || !!busy} onClick={undo}><Icon name="undo" size={14} /></button>
+            <button className="tbtn" title="重做（Ctrl+Shift+Z）" aria-label="重做" disabled={!doc.future.length || !!busy} onClick={redo}><Icon name="redo" size={14} /></button>
             <span className="sep" />
-            <button className={`tbtn ${play ? 'active' : ''}`} title="Play the selection, or from the cursor (Space)" aria-label={play ? 'Stop' : 'Play'} onClick={togglePlay}><Icon name={play ? 'stop' : 'play'} size={14} /></button>
-            <button className={`tbtn ${loop ? 'active' : ''}`} title="Loop the selection" aria-label="Loop" aria-pressed={loop} onClick={() => setLoop(!loop)}><Icon name="loop" size={14} /></button>
+            <button className={`tbtn ${play ? 'active' : ''}`} title="播放选区，或从光标处播放（空格）" aria-label={play ? '停止' : '播放'} onClick={togglePlay}><Icon name={play ? 'stop' : 'play'} size={14} /></button>
+            <button className={`tbtn ${loop ? 'active' : ''}`} title="循环选区" aria-label="循环" aria-pressed={loop} onClick={() => setLoop(!loop)}><Icon name="loop" size={14} /></button>
             <span className="sep" />
             {tab === 'wave' && (
               <>
-                <button className="tbtn" title="Cut (Ctrl+X)" aria-label="Cut" disabled={!hasSel || !!busy} onClick={cut}><Icon name="scissors" size={14} /></button>
-                <button className="tbtn" title="Copy (Ctrl+C)" aria-label="Copy" disabled={!hasSel} onClick={copy}><Icon name="copy" size={14} /></button>
-                <button className="tbtn" title="Paste at the cursor, or over the selection (Ctrl+V)" aria-label="Paste" disabled={!!busy} onClick={paste}><Icon name="paste" size={14} /></button>
-                <button className="tbtn" title="Delete the selection (Del)" aria-label="Delete selection" disabled={!hasSel || !!busy} onClick={del}><Icon name="trash" size={14} /></button>
-                <button className="tbtn text" title="Keep only the selection" disabled={!hasSel || !!busy} onClick={crop}>Trim</button>
+                <button className="tbtn" title="剪切（Ctrl+X）" aria-label="剪切" disabled={!hasSel || !!busy} onClick={cut}><Icon name="scissors" size={14} /></button>
+                <button className="tbtn" title="复制（Ctrl+C）" aria-label="复制" disabled={!hasSel} onClick={copy}><Icon name="copy" size={14} /></button>
+                <button className="tbtn" title="粘贴到光标处，或覆盖选区（Ctrl+V）" aria-label="粘贴" disabled={!!busy} onClick={paste}><Icon name="paste" size={14} /></button>
+                <button className="tbtn" title="删除选区（Del）" aria-label="删除选区" disabled={!hasSel || !!busy} onClick={del}><Icon name="trash" size={14} /></button>
+                <button className="tbtn text" title="只保留选区" disabled={!hasSel || !!busy} onClick={crop}>裁切</button>
                 <span className="sep" />
-                <button className="tbtn" title="Fade in (selection, or the whole sample)" aria-label="Fade in" disabled={!!busy} onClick={process.fadeIn}><Icon name="fadeIn" size={14} /></button>
-                <button className="tbtn" title="Fade out (selection, or the whole sample)" aria-label="Fade out" disabled={!!busy} onClick={process.fadeOut}><Icon name="fadeOut" size={14} /></button>
-                <button className="tbtn text" title="Normalise the peak to -1 dBFS" disabled={!!busy} onClick={process.normalize}>Normalise</button>
-                <button className="tbtn text" title="Reverse" disabled={!!busy} onClick={process.reverse}>Reverse</button>
-                <button className="tbtn text" title="More processing" aria-haspopup="menu" disabled={!!busy} onClick={(e) => menuAt(e, moreMenu())}>More ▾</button>
+                <button className="tbtn" title="淡入（选区，或整段采样）" aria-label="淡入" disabled={!!busy} onClick={process.fadeIn}><Icon name="fadeIn" size={14} /></button>
+                <button className="tbtn" title="淡出（选区，或整段采样）" aria-label="淡出" disabled={!!busy} onClick={process.fadeOut}><Icon name="fadeOut" size={14} /></button>
+                <button className="tbtn text" title="把峰值归一到 -1 dBFS" disabled={!!busy} onClick={process.normalize}>归一</button>
+                <button className="tbtn text" title="反向" disabled={!!busy} onClick={process.reverse}>反向</button>
+                <button className="tbtn text" title="更多处理" aria-haspopup="menu" disabled={!!busy} onClick={(e) => menuAt(e, moreMenu())}>更多 ▾</button>
                 <span className="sep" />
-                <button className="tbtn" title="Zoom in (+, Ctrl+wheel)" aria-label="Zoom in" onClick={() => zoom(0.5)}><Icon name="zoomIn" size={14} /></button>
-                <button className="tbtn" title="Zoom out (-)" aria-label="Zoom out" onClick={() => zoom(2)}><Icon name="zoomOut" size={14} /></button>
-                <button className="tbtn text" title="Show the whole sample" onClick={fit}>Fit</button>
-                <button className="tbtn text" title="Zoom to the selection" disabled={!hasSel} onClick={zoomSel}>Sel</button>
-                <label className="we-check" title="Selections start and end where the waveform crosses zero (no clicks at the cuts)">
+                <button className="tbtn" title="放大（＋，Ctrl+滚轮）" aria-label="放大" onClick={() => zoom(0.5)}><Icon name="zoomIn" size={14} /></button>
+                <button className="tbtn" title="缩小（−）" aria-label="缩小" onClick={() => zoom(2)}><Icon name="zoomOut" size={14} /></button>
+                <button className="tbtn text" title="显示整段采样" onClick={fit}>适应</button>
+                <button className="tbtn text" title="缩放到选区" disabled={!hasSel} onClick={zoomSel}>选区</button>
+                <label className="we-check" title="选区在波形过零处起止（切点不会咔哒）">
                   <input type="checkbox" checked={snapZero} onChange={(e) => setSnapZero(e.target.checked)} /> Zero-cross
                 </label>
               </>
@@ -647,13 +647,13 @@ export function WaveEditor() {
           ) : (
             <PitchView memory={pitchMemory} clip={clip} view={view} setView={setView} sel={sel} setSel={setSel} onWheel={onWheel} busy={busy} setBusy={setBusy}
               onApply={(next, label, base) => {
-                if (docRef.current?.clip !== base) { st.toast(`${label}: the audio changed meanwhile, so the result was dropped`, 'warn'); return false; }
+                if (docRef.current?.clip !== base) { st.toast(`${label}：这期间音频变了，结果已丢弃`, 'warn'); return false; }
                 play?.stop();
                 commit(next, label);
                 return true;
               }} playClip={playClip} stopPlay={stopPlay} playing={!!play} playheadRef={playheadRef} />
           )}
-          <canvas ref={overviewRef} className="we-overview we-canvas" title="Overview: drag to scroll" onPointerDown={onOverview} onPointerMove={onOverview} onWheel={onWheel} />
+          <canvas ref={overviewRef} className="we-overview we-canvas" title="总览：拖动可滚动" onPointerDown={onOverview} onPointerMove={onOverview} onWheel={onWheel} />
           <div className="we-foot">
             <span className="we-name">{name}{dirty ? ' •' : ''}</span>
             <span className="we-info" data-testid="wave-info">
@@ -662,8 +662,8 @@ export function WaveEditor() {
             </span>
             {busy && <span className="we-busy" role="status">{busy}</span>}
             <span className="spacer" />
-            <button className="btn tiny" disabled={!!busy || !sample || !dirty} title="Overwrite the sample: every project that uses it plays the edited audio" onClick={replaceOriginal}>Replace original…</button>
-            <button className="btn tiny primary" disabled={!!busy} title="Keep the original and add the edited audio as a new sample" onClick={saveAsNew}>Save as new…</button>
+            <button className="btn tiny" disabled={!!busy || !sample || !dirty} title="覆盖采样：所有用到它的项目都会播放编辑后的音频" onClick={replaceOriginal}>替换原始…</button>
+            <button className="btn tiny primary" disabled={!!busy} title="保留原始，把编辑后的音频存为新采样" onClick={saveAsNew}>另存为…</button>
           </div>
         </div>
       )}

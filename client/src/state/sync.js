@@ -111,7 +111,7 @@ class Sync {
       if (list) this.store.setState({ projects: list });
       const next = list?.find((p) => p.id !== missingId);
       if (next) {
-        st.toast(`That project was deleted — opened "${next.name}"`, 'info');
+        st.toast(`那个工程被删了——已打开「${next.name}」`, 'info');
         st.openProject(next.id);
       } else if (list) {
         // the server makes sure every user has a project; reconnecting picks it up
@@ -174,7 +174,7 @@ class Sync {
           this.recoverMissingProject(this.projectId);
           break;
         }
-        st.toast(`Edit rejected: ${msg.message}`, 'error');
+        st.toast(`改动被拒绝：${msg.message}`, 'error');
         if (msg.project) {
           // server state at the time of the rejection + our later edits that are still queued there
           let project = msg.project;
@@ -211,7 +211,7 @@ class Sync {
         }
         if (msg.action === 'play') {
           st.play({ mode: msg.mode, patternId: msg.patternId, position: msg.position || 0 });
-          st.toast(`Claude pressed play (${msg.mode} mode)`, 'claude');
+          st.toast(`Claude 按了播放（${msg.mode === 'song' ? '歌曲' : '片段'}模式）`, 'claude');
         } else if (msg.action === 'stop') {
           st.stop();
         }
@@ -222,9 +222,9 @@ class Sync {
           st.refreshProjects();
           if (st.followClaude) {
             st.openProject(msg.projectId);
-            st.toast('Claude opened a project', 'claude');
+            st.toast('Claude 打开了一个工程', 'claude');
           } else {
-            st.toast('Claude created/opened another project (see Projects)', 'claude');
+            st.toast('Claude 新建或打开了另一个工程（见「工程」）', 'claude');
           }
         }
         break;

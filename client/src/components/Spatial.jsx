@@ -7,7 +7,7 @@ import { Icon } from './ui/Icon.jsx';
 import { exportSpatialFromUi } from '../lib/actions.js';
 
 const ROOM = 260; // px, the room seen from above (front wall at the top)
-const PRESETS = [['front-left', 'FL'], ['center', 'C'], ['front-right', 'FR'], ['left', 'L'], ['overhead', 'Top'], ['right', 'R'], ['rear-left', 'RL'], ['rear', 'Rear'], ['rear-right', 'RR']];
+const PRESETS = [['front-left', 'FL'], ['center', 'C'], ['front-right', 'FR'], ['left', 'L'], ['overhead', 'Top'], ['right', 'R'], ['rear-left', 'RL'], ['rear', '后方'], ['rear-right', 'RR']];
 const toPx = (x, y) => [((x + 1) / 2) * ROOM, ((1 - y) / 2) * ROOM];
 
 /** Speakers of the 7.1.4 layout drawn on the room plan (ear level as circles, height speakers as squares). */
@@ -17,12 +17,20 @@ function Speakers() {
     const m = Math.max(Math.abs(d[0]), Math.abs(d[1])) || 1;
     const [px, py] = toPx((d[0] / m) * (d[2] ? 0.55 : 0.97), (d[1] / m) * (d[2] ? 0.55 : 0.97));
     return d[2]
-      ? <rect key={id} x={px - 5} y={py - 5} width="10" height="10" rx="2" className="spk top"><title>{id} (height)</title></rect>
-      : <circle key={id} cx={px} cy={py} r="5" className="spk"><title>{id}</title></circle>;
+      ? <rect key={id} x={px - 5} y={py - 5} width="10" height="10" rx="2" className="spk top"><title>{SPK[id] || id}（高度）</title></rect>
+      : <circle key={id} cx={px} cy={py} r="5" className="spk"><title>{SPK[id] || id}</title></circle>;
   });
 }
 
 /** The spatial (Atmos-style) mixer: which inserts are 3D objects and where they sit in the room. */
+// 标准音箱代号的中文名（代号本身是国际通用的声道标识，保留原文便于对表）
+const SPK = {
+  L: '左', R: '右', C: '中置', LFE: '低频效果',
+  Ls: '左环绕', Rs: '右环绕', Lrs: '左后环绕', Rrs: '右后环绕',
+  Lss: '左侧环绕', Rss: '右侧环绕',
+  Ltf: '左上前', Rtf: '右上前', Ltr: '左上后', Rtr: '右上后'
+};
+
 export function Spatial() {
   const project = useStore((s) => s.project);
   const sel = useStore((s) => s.selectedObject);
@@ -64,30 +72,30 @@ export function Spatial() {
 
   const toolbar = (
     <>
-      <button className={`toggle ${sp.enabled ? 'on' : ''}`} aria-pressed={sp.enabled} title="Render 3D objects (otherwise everything is the stereo mix)" onClick={() => setProject({ enabled: !sp.enabled })}>3D {sp.enabled ? 'ON' : 'OFF'}</button>
-      <span className="label">Monitor</span>
-      <select className="ui-select" value={sp.monitor} onChange={(e) => setProject({ monitor: e.target.value })} onKeyDown={(e) => e.stopPropagation()} title="What you hear in the studio">
-        <option value="stereo">Stereo fold-down</option>
-        <option value="binaural">Binaural (headphones)</option>
+      <button className={`toggle ${sp.enabled ? 'on' : ''}`} aria-pressed={sp.enabled} title="渲染 3D 对象（否则全部按立体声混音）" onClick={() => setProject({ enabled: !sp.enabled })}>三维 {sp.enabled ? '开' : '关'}</button>
+      <span className="label">监听</span>
+      <select className="ui-select" value={sp.monitor} onChange={(e) => setProject({ monitor: e.target.value })} onKeyDown={(e) => e.stopPropagation()} title="你在工作室听到的">
+        <option value="stereo">折成立体声</option>
+        <option value="binaural">双耳（耳机）</option>
       </select>
-      <button className="tbtn small text" title="Render a spatial deliverable into Projects → Exports" onClick={(e) => st.showContextMenu(e, [
-        { header: 'Export spatial mix (48 kHz / 24-bit)' },
+      <button className="tbtn small text" title="把空间成品渲染到 项目 → 导出" onClick={(e) => st.showContextMenu(e, [
+        { header: '导出空间混音（48 kHz / 24 位）' },
         ...SPATIAL_EXPORT_IDS.map((k) => ({ label: SPATIAL_EXPORTS[k].label, disabled: !objects.length, onClick: () => exportSpatialFromUi(k) }))
-      ])}><Icon name="download" size={13} /> Export</button>
+      ])}><Icon name="download" size={13} /> 导出</button>
     </>
   );
 
   return (
-    <Window name="spatial" title="Spatial mixer (3D)" icon="spatial" toolbar={toolbar} minW={460} minH={340} className="spatial">
+    <Window name="spatial" title="空间混音台（3D）" icon="spatial" toolbar={toolbar} minW={460} minH={340} className="spatial">
       <div className="spatial-layout">
         <div className="room-wrap">
           <svg ref={svg} className={`room ${sp.enabled ? '' : 'off'}`} viewBox={`-14 -14 ${ROOM + 28} ${ROOM + 28}`} onPointerMove={onMove} onPointerUp={() => setDrag(null)} onPointerLeave={() => setDrag(null)}
-            role="img" aria-label="Room seen from above; front at the top">
+            role="img" aria-label="俯视房间；前方在上">
             <rect x="0" y="0" width={ROOM} height={ROOM} rx="6" className="room-floor" />
             <line x1={ROOM / 2} y1="0" x2={ROOM / 2} y2={ROOM} className="room-axis" />
             <line x1="0" y1={ROOM / 2} x2={ROOM} y2={ROOM / 2} className="room-axis" />
-            <text x={ROOM / 2} y="-4" className="room-label" textAnchor="middle">FRONT</text>
-            <text x={ROOM / 2} y={ROOM + 12} className="room-label" textAnchor="middle">BACK</text>
+            <text x={ROOM / 2} y="-4" className="room-label" textAnchor="middle">前</text>
+            <text x={ROOM / 2} y={ROOM + 12} className="room-label" textAnchor="middle">后</text>
             <Speakers />
             <g className="listener"><circle cx={ROOM / 2} cy={ROOM / 2} r="7" /><path d={`M${ROOM / 2 - 4} ${ROOM / 2 - 5} L${ROOM / 2} ${ROOM / 2 - 12} L${ROOM / 2 + 4} ${ROOM / 2 - 5}`} /></g>
             {objects.map(({ m, i }) => {
@@ -100,12 +108,12 @@ export function Spatial() {
                   <circle r={9 + s.z * 7} className="obj-height" />
                   <circle r="9" style={{ fill: m.color || 'var(--accent-3)' }} />
                   <text y="3.5" textAnchor="middle">{i}</text>
-                  <title>{`${m.name}: x ${s.x}, y ${s.y}, height ${s.z}${active ? '' : ' (inactive: routed to a bus or 3D is off)'}`}</title>
+                  <title>{`${m.name}：x ${s.x}，y ${s.y}，高度 ${s.z}${active ? '' : '（未生效：已路由到总线，或三维未开启）'}`}</title>
                 </g>
               );
             })}
           </svg>
-          <p className="muted small">Drag objects; the ring shows height. Squares are height speakers (7.1.4).</p>
+          <p className="muted small">拖动对象；圆环表示高度。方块是高度音箱（7.1.4）。</p>
         </div>
         <div className="spatial-side">
           {selected && cur ? (
@@ -113,8 +121,8 @@ export function Spatial() {
               <h4>{selected}. {project.mixer[selected].name}</h4>
               <div className="knob-row">
                 <Knob label="Left/right" value={cur.x} min={-1} max={1} def={0} bipolar showValue onChange={(v) => place(selected, { x: v }, 'x')} />
-                <Knob label="Back/front" value={cur.y} min={-1} max={1} def={1} bipolar showValue onChange={(v) => place(selected, { y: v }, 'y')} />
-                <Knob label="Height" value={cur.z} min={0} max={1} def={0} showValue onChange={(v) => place(selected, { z: v }, 'z')} />
+                <Knob label="前后" value={cur.y} min={-1} max={1} def={1} bipolar showValue onChange={(v) => place(selected, { y: v }, 'y')} />
+                <Knob label="高度" value={cur.z} min={0} max={1} def={0} showValue onChange={(v) => place(selected, { z: v }, 'z')} />
                 <Knob label="LFE" value={cur.lfe} min={0} max={1} def={0} showValue onChange={(v) => place(selected, { lfe: v }, 'lfe')} />
               </div>
               <div className="preset-grid">
@@ -124,15 +132,15 @@ export function Spatial() {
               </div>
               {project.mixer[selected].output !== 0 && <p className="notice warn">Routed to insert {project.mixer[selected].output}: only inserts that go straight to the master can be 3D objects.</p>}
             </div>
-          ) : <p className="empty-hint">Tick inserts below to make them 3D objects.</p>}
-          <h4>Inserts</h4>
+          ) : <p className="empty-hint">勾选下方的插入，让它们成为 3D 对象。</p>}
+          <h4>插入</h4>
           <div className="obj-list">
             {candidates.map(({ m, i }) => (
               <label key={m.id} className={`obj-row ${i === selected ? 'sel' : ''}`} onClick={() => m.spatial?.enabled && useStore.setState({ selectedObject: i })}>
                 <input type="checkbox" checked={!!m.spatial?.enabled} disabled={m.output !== 0 && !m.spatial?.enabled} onChange={(e) => toggleObject(i, e.target.checked)} />
                 <span className="obj-num">{i}</span>
                 <span className="obj-name">{m.name}</span>
-                <span className="muted">{m.spatial?.enabled ? '3D' : m.output ? `→ ${m.output}` : 'bed'}</span>
+                <span className="muted">{m.spatial?.enabled ? '三维' : m.output ? `→ ${m.output}` : '基础层'}</span>
               </label>
             ))}
           </div>

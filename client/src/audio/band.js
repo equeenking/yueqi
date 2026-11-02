@@ -137,6 +137,11 @@ function guitar(v, ctx, p, args) {
   return modelVoice(v, ctx, modelOf('guitar', p), args, { level: p.gain * MODEL_LEVEL.guitar, release: p.release, drive: p.drive, cabHz: 5200 });
 }
 
+/** The ukulele is the same pluck model as the guitar — smaller body, nylon-bright, shorter sustain (params voice it). */
+function ukulele(v, ctx, p, args) {
+  return modelVoice(v, ctx, modelOf('guitar', p), args, { level: p.gain * MODEL_LEVEL.guitar * 1.05, release: p.release, cabHz: 5600 });
+}
+
 function bass(v, ctx, p, args) {
   return modelVoice(v, ctx, modelOf('bass', p), args, { level: p.gain * MODEL_LEVEL.bass, release: p.release, glide: p.mono ? p.glide : 0, drive: p.drive, cabHz: 3800 });
 }
@@ -412,4 +417,4 @@ function strings(v, ctx, p, args) {
   return null;
 }
 
-export const BAND = { piano, epiano, organ, guitar, bass, strings };
+export const BAND = { piano, epiano, organ, guitar, ukulele, bass, strings };

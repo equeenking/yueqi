@@ -11,10 +11,10 @@ function ensureFrame() {
     frame = document.createElement('iframe');
     frame.setAttribute('sandbox', 'allow-scripts');
     frame.setAttribute('aria-hidden', 'true');
-    frame.title = 'Generator sandbox';
+    frame.title = '生成器沙箱';
     frame.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
     frame.src = '/sandbox/generator.html';
-    const t = setTimeout(() => { ready = null; reject(new Error('The generator sandbox did not start')); }, 10000);
+    const t = setTimeout(() => { ready = null; reject(new Error('生成器沙箱没有启动')); }, 10000);
     window.addEventListener('message', (e) => {
       if (!frame || e.source !== frame.contentWindow) return; // only our sandbox
       const m = e.data;
@@ -35,7 +35,7 @@ export async function runInSandbox(code, input, { timeoutMs = 2000 } = {}) {
   await ensureFrame();
   const id = Math.random().toString(36).slice(2);
   return new Promise((resolve) => {
-    const guard = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'No answer from the sandbox' }); }, timeoutMs + 3000);
+    const guard = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: '沙箱没有回应' }); }, timeoutMs + 3000);
     pending.set(id, (m) => { clearTimeout(guard); resolve({ ok: !!m.ok, notes: m.notes, error: m.error }); });
     // the sandbox has an opaque origin, so '*' is the only target; nothing here is secret (code + pattern notes)
     frame.contentWindow.postMessage({ type: 'gtd-generate', id, code, input: JSON.parse(JSON.stringify(input)), timeoutMs }, '*');

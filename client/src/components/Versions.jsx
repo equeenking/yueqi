@@ -21,42 +21,42 @@ export function Versions() {
 
   if (!project) return null;
   const save = async () => {
-    const name = await st.prompt({ title: 'Save version', value: `${project.name} — ${new Date().toLocaleString()}` });
+    const name = await st.prompt({ title: '保存版本', value: `${project.name} — ${new Date().toLocaleString()}` });
     if (name === null) return;
     try {
       await api.saveVersion(pid, name);
-      st.toast('Version saved', 'success');
+      st.toast('版本已保存', 'success');
       load();
     } catch (e) { st.toast(e.message, 'error'); }
   };
   const restore = async (v) => {
-    if (!(await st.confirm({ title: `Restore "${v.name}"?`, message: 'The current state will be replaced (save a version first if you want to keep it). You can undo with Ctrl+Z.', okLabel: 'Restore' }))) return;
+    if (!(await st.confirm({ title: `Restore "${v.name}"?`, message: '当前状态会被替换（想保留就先存一个版本）。可以用 Ctrl+Z 撤销。', okLabel: '恢复' }))) return;
     try {
       const r = await api.restoreVersion(pid, v.id);
       st.setProjectFromServer(r.project);
-      st.toast('Version restored', 'success');
+      st.toast('版本已恢复', 'success');
     } catch (e) { st.toast(e.message, 'error'); }
   };
   const remove = async (v) => {
-    if (!(await st.confirm({ title: `Delete version "${v.name}"?`, danger: true, okLabel: 'Delete' }))) return;
+    if (!(await st.confirm({ title: `Delete version "${v.name}"?`, danger: true, okLabel: '删除' }))) return;
     await api.deleteVersion(pid, v.id).catch((e) => st.toast(e.message, 'error'));
     load();
   };
 
   return (
-    <Window name="versions" title={`Versions — ${project.name}`} icon="history" minW={360} minH={220}
-      toolbar={<button className="btn tiny primary" onClick={save}><Icon name="plus" size={12} /> Save version</button>}>
+    <Window name="versions" title={`版本历史 — ${project.name}`} icon="history" minW={360} minH={220}
+      toolbar={<button className="btn tiny primary" onClick={save}><Icon name="plus" size={12} /> 保存版本</button>}>
       <div className="versions">
         {list === null && <div className="spinner" />}
-        {list?.length === 0 && <p className="empty-hint">No versions yet. Save one before big changes — Claude can also save versions (save_version) before experimenting.</p>}
+        {list?.length === 0 && <p className="empty-hint">还没有版本：改动前先「保存版本」，随时可以回到这一刻（Claude 也能在试验前自动存版本）。</p>}
         {list?.map((v) => (
           <div key={v.id} className="version-row">
             <div className="version-info">
               <b>{v.name}</b>
               <span className="muted">{new Date(v.createdAt).toLocaleString()} · {v.bpm} BPM · {v.channels} channels · {v.patterns} patterns</span>
             </div>
-            <button className="btn tiny" onClick={() => restore(v)}>Restore</button>
-            <button className="tbtn small" title="Delete" onClick={() => remove(v)}><Icon name="trash" size={13} /></button>
+            <button className="btn tiny" onClick={() => restore(v)}>恢复</button>
+            <button className="tbtn small" title="删除" onClick={() => remove(v)}><Icon name="trash" size={13} /></button>
           </div>
         ))}
       </div>

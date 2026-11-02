@@ -58,7 +58,8 @@ const P = {
   fadeIn: 'M3 20 21 5v15z',
   fadeOut: 'M3 5l18 15H3z',
   tune: 'M3 17c3 0 3-10 6-10s3 10 6 10 3-6 6-6',
-  edit: 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3'
+  edit: 'M4 20l4-1 11-11-3-3L5 16zM14 6l3 3',
+  book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5V5a2 2 0 0 1 2-2h14v14H6.5A2.5 2.5 0 0 0 4 19.5z'
 };
 
 const FILLED = new Set(['play', 'stop', 'pause', 'record', 'claude']);

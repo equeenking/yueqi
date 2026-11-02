@@ -11,7 +11,7 @@ import { runAudioJob } from '../lib/audioEdit.js';
 
 const KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const label = (k) => k.replace(/([A-Z])/g, ' $1').toLowerCase();
-const SCALE_OPTIONS = [{ value: 'chromatic', label: 'chromatic (every semitone)' }, ...Object.keys(SCALES).filter((k) => k !== 'chromatic').map((k) => ({ value: k, label: label(k) }))];
+const SCALE_OPTIONS = [{ value: 'chromatic', label: '半音阶（每个半音）' }, ...Object.keys(SCALES).filter((k) => k !== 'chromatic').map((k) => ({ value: k, label: label(k) }))];
 export const PITCH_PRESETS = {
   Natural: { amount: 1, speedMs: 70, flatten: 0 },
   Tight: { amount: 1, speedMs: 20, flatten: 0.5 },
@@ -125,8 +125,8 @@ function drawPitch(canvas, { view, sr, track, notes, corrected, lo, hi, scalePcs
  * memory: a ref the wave editor keeps — { clip, track, notes, key, scale, params } — so switching to the Wave tab and
  * back keeps the notes moved by hand and the settings (for the same audio).
  */
-const FINDING = 'Finding the melody…';
-const TUNING = 'Tuning…';
+const FINDING = '正在识别旋律…';
+const TUNING = '正在校音…';
 
 export function PitchView({ memory, clip, view, setView, sel, setSel, onWheel, busy, setBusy, onApply, playClip, stopPlay, playing, playheadRef }) {
   const pKey = useStore((s) => s.project?.key);
@@ -218,7 +218,7 @@ export function PitchView({ memory, clip, view, setView, sel, setSel, onWheel, b
   const splitAt = (n, sec) => {
     const f = Math.round(sec / track.hop);
     const min = Math.round(0.04 / track.hop);
-    if (f - n.start < min || n.end - f < min) return st.toast('Too close to the end of the note to split there', 'warn', 1600);
+    if (f - n.start < min || n.end - f < min) return st.toast('太靠近音符末尾，无法在此切分', 'warn', 1600);
     const id = nextId();
     const a = inherit(n, makeNote(id, n.start, f, { slideOut: true }));
     const b = inherit(n, makeNote(id + 1, f, n.end, { slideIn: true }));
@@ -238,13 +238,13 @@ export function PitchView({ memory, clip, view, setView, sel, setSel, onWheel, b
   const noteMenu = (n, sec) => {
     const next = notes[notes.indexOf(n) + 1];
     return [
-      { label: 'Snap to the scale', onClick: () => patchNote(n.id, { target: snap(n.center), locked: false, bypass: false }) },
-      { label: 'Keep as sung (no correction)', onClick: () => patchNote(n.id, { target: n.center, locked: true, bypass: false }) },
-      { label: n.bypass ? 'Correct this note again' : 'Leave this note alone (bypass)', onClick: () => patchNote(n.id, { bypass: !n.bypass }) },
-      ...[-12, -1, 1, 12].map((d) => ({ label: `${d > 0 ? 'Up' : 'Down'} ${Math.abs(d) === 12 ? 'an octave' : 'a semitone'}`, onClick: () => patchNote(n.id, { target: Math.round(n.target) + d, locked: true, bypass: false }) })),
+      { label: '吸附到音阶', onClick: () => patchNote(n.id, { target: snap(n.center), locked: false, bypass: false }) },
+      { label: '保留原唱（不修正）', onClick: () => patchNote(n.id, { target: n.center, locked: true, bypass: false }) },
+      { label: n.bypass ? '重新修正此音符' : '保持此音符不变（旁通）', onClick: () => patchNote(n.id, { bypass: !n.bypass }) },
+      ...[-12, -1, 1, 12].map((d) => ({ label: `${d > 0 ? '升高' : '降低'} ${Math.abs(d) === 12 ? '一个八度' : '一个半音'}`, onClick: () => patchNote(n.id, { target: Math.round(n.target) + d, locked: true, bypass: false }) })),
       '-',
-      { label: 'Split the note here', disabled: sec === undefined, onClick: () => splitAt(n, sec) },
-      { label: 'Join with the next note', disabled: !next || next.startSec - n.endSec > 0.15, onClick: () => joinNext(n) }
+      { label: '在此切分音符', disabled: sec === undefined, onClick: () => splitAt(n, sec) },
+      { label: '与后一个音符合并', disabled: !next || next.startSec - n.endSec > 0.15, onClick: () => joinNext(n) }
     ];
   };
 
@@ -353,8 +353,8 @@ export function PitchView({ memory, clip, view, setView, sel, setSel, onWheel, b
     try {
       const base = clip;
       const out = await tunedAudio();
-      if (!onApply(out, 'Pitch correction', base)) return;
-      st.toast(`Tuned ${notes.filter((n) => !n.bypass).length} notes to ${scale === 'chromatic' ? 'the nearest semitone' : `${key} ${label(scale)}`}`, 'success', 1800);
+      if (!onApply(out, '音高修正', base)) return;
+      st.toast(`Tuned ${notes.filter((n) => !n.bypass).length} notes to ${scale === 'chromatic' ? '最近的半音' : `${key} ${label(scale)}`}`, 'success', 1800);
     } catch (e) {
       st.toast(e.message, 'error');
     }
@@ -365,46 +365,46 @@ export function PitchView({ memory, clip, view, setView, sel, setSel, onWheel, b
 
   return (
     <div className="pv" onKeyDown={onKeyDown}>
-      <div className="pv-controls" role="group" aria-label="Pitch correction">
+      <div className="pv-controls" role="group" aria-label="音高修正">
         <label className="pv-field">Key
-          <Select value={key} options={KEYS} onChange={(k) => setKeyScale(k, scale)} title="Key" />
+          <Select value={key} options={KEYS} onChange={(k) => setKeyScale(k, scale)} title="音高" />
         </label>
         <label className="pv-field">Scale
-          <Select value={scale} options={SCALE_OPTIONS} onChange={(s) => setKeyScale(key, s)} title="Scale" />
+          <Select value={scale} options={SCALE_OPTIONS} onChange={(s) => setKeyScale(key, s)} title="音阶" />
         </label>
-        <label className="pv-field" title="How far notes move to their target (100% = all the way)">Amount
+        <label className="pv-field" title="音符移动到目标的程度（100%＝完全对齐）">Amount
           <input type="range" min="0" max="100" value={Math.round(params.amount * 100)} onChange={(e) => setParams((p) => ({ ...p, amount: Number(e.target.value) / 100 }))} />
           <span className="pv-val">{Math.round(params.amount * 100)}%</span>
         </label>
-        <label className="pv-field" title="How long a note takes to reach its target: 0 ms = instant (the robotic effect), slower keeps scoops and slides">Speed
+        <label className="pv-field" title="音符到达目标所用时间：0 毫秒＝瞬间（机械感），越慢越保留起音与滑音">Speed
           <input type="range" min="0" max="200" step="5" value={params.speedMs} onChange={(e) => setParams((p) => ({ ...p, speedMs: Number(e.target.value) }))} />
           <span className="pv-val">{params.speedMs} ms</span>
         </label>
-        <label className="pv-field" title="How much of the vibrato and drift inside each note is ironed out">Flatten
+        <label className="pv-field" title="每个音内部的颤音与漂移被抹平多少">Flatten
           <input type="range" min="0" max="100" value={Math.round(params.flatten * 100)} onChange={(e) => setParams((p) => ({ ...p, flatten: Number(e.target.value) / 100 }))} />
           <span className="pv-val">{Math.round(params.flatten * 100)}%</span>
         </label>
-        <div className="pv-presets" role="group" aria-label="Presets">
+        <div className="pv-presets" role="group" aria-label="预设">
           {Object.entries(PITCH_PRESETS).map(([name, p]) => (
             <button key={name} className={`btn tiny ${params.amount === p.amount && params.speedMs === p.speedMs && params.flatten === p.flatten ? 'on' : ''}`} onClick={() => setParams(p)}>{name}</button>
           ))}
         </div>
         <span className="spacer" />
-        <button className="btn tiny" title="Give every note you did not move back to the scale" disabled={!track} onClick={() => setNotes((l) => l.map((n) => (n.locked ? n : { ...n, target: snap(n.center), bypass: false })))}>Snap all</button>
-        <button className="btn tiny" title="Unlock every note and snap it to the scale" disabled={!track} onClick={() => setNotes((l) => l.map((n) => ({ ...n, target: snap(n.center), locked: false, bypass: false })))}>Reset</button>
-        <button className={`btn tiny ${playing ? 'on' : ''}`} disabled={!track || !!busy || !notes.length} onClick={preview} title="Hear the corrected audio (the selection, or from the cursor)">{playing ? 'Stop' : 'Preview'}</button>
-        <button className="btn tiny primary" disabled={!track || !!busy || !changed} onClick={apply} title="Write the correction into the audio (one undo step)">Apply</button>
+        <button className="btn tiny" title="把没移动过的音符都拉回音阶" disabled={!track} onClick={() => setNotes((l) => l.map((n) => (n.locked ? n : { ...n, target: snap(n.center), bypass: false })))}>全部吸附</button>
+        <button className="btn tiny" title="解锁所有音符并对齐音阶" disabled={!track} onClick={() => setNotes((l) => l.map((n) => ({ ...n, target: snap(n.center), locked: false, bypass: false })))}>重置</button>
+        <button className={`btn tiny ${playing ? 'on' : ''}`} disabled={!track || !!busy || !notes.length} onClick={preview} title="试听修正后的音频（选区或从光标处）">{playing ? '停止' : '试听'}</button>
+        <button className="btn tiny primary" disabled={!track || !!busy || !changed} onClick={apply} title="把修正写入音频（一步撤销）">应用</button>
       </div>
       <div className="pv-area we-canvas" onWheel={onWheel}>
         <canvas ref={canvasRef} className="pv-canvas" data-testid="pitch-canvas" tabIndex={-1} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
           onDoubleClick={onDoubleClick} onContextMenu={onContextMenu} />
         <div ref={playheadRef} className="we-playhead" />
-        {track && !notes.length && <p className="pv-empty">No melody found. Pitch correction works on a solo voice or instrument (one note at a time).</p>}
-        {error && <p className="pv-empty error">Pitch analysis failed: {error}</p>}
+        {track && !notes.length && <p className="pv-empty">没有找到旋律：音高修正只对独唱／独奏（同一时间一个音）有效。</p>}
+        {error && <p className="pv-empty error">音高分析失败：{error}</p>}
       </div>
       <div className="pv-status" data-testid="pitch-status">
-        {track ? `${notes.length} note${notes.length === 1 ? '' : 's'} · ${active.length < notes.length ? `${notes.length - active.length} bypassed · ` : ''}largest move ${maxMove.toFixed(2)} semitones` : 'Finding the melody…'}
-        <span className="muted"> · drag a note up/down (Alt = fine; ↑ ↓, [ ] next note), double-click = back to the scale, right-click = split, join and more</span>
+        {track ? `${notes.length} 个音符${active.length < notes.length ? `（${notes.length - active.length} 个未处理）` : ''} · 最大修正 ${maxMove.toFixed(2)} 半音` : '正在识别旋律…'}
+        <span className="muted"> · 上下拖动音符改音高（Alt 微调；↑ ↓ 切换音符），双击回到音阶，右键有拆分／连接等</span>
       </div>
     </div>
   );

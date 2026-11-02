@@ -1,9 +1,17 @@
 // Synthesized instruments. Every function schedules one note ("voice") on a Web Audio graph.
 import { midiToFreq, instrumentDefaults, INSTRUMENTS } from '@greanteadawy/core';
 import { noiseSource, shaperCurve, adsr, percEnv, timbre, FLAT_Q } from './dsp.js';
-import { BAND } from './band.js';
+import { BAND, modelVoice } from './band.js';
 import { WORLD } from './world.js';
 import { pluginVoice } from './plugins.js';
+import { modelOf } from './models.js';
+import { hasSampleBank, bankLooped, getBankTake } from './sampleBank.js';
+
+// A recorded instrument plays its recording, not a synthesis of it: the note comes out of the sample bank through
+// the very same buffer path the piano uses (so velocity layers, note-off, glide and the note cache all keep working).
+// The recordings are levelled to -18 dBFS attack-RMS by sampleBank.js, a little under the physical models, and these
+// factors put one note at velocity 0.8 next to the models'.
+const SAMPLE_LEVEL = { guzheng: 1.8, erhu: 1.2, xiao: 1.0, suona: 1.1, xun: 1.0, muyu: 1.5, timpani: 1.4, hang: 1.3, eguitar: 1.2, flute: 1.0, oboe: 1.05, clarinet: 1.0, bassoon: 1.1, horn: 1.05, violin: 1.15 };
 
 /** A playing note. Owns its sources; supports note-off (release) and fast kill (choke / stop). */
 export class Voice {
@@ -132,8 +140,40 @@ function metallic(v, ctx, t, base, end, dest, level) {
 
 // ---------------------------------------------------------------- drums
 
+/**
+ * One real drum take, played exactly like the gong plays its recording (world.js): the take replaces the
+ * synth voice entirely — playbackRate resamples to the requested tuning (so the tune/pitch knobs keep
+ * working and key changes transpose), and the recorded p…fff dynamic IS most of the velocity response, so
+ * the gain only trims around the matching velocity layer instead of squaring on top of it. The absolute
+ * level is baked per kind at build time (build_samples.py DRUM_PEAK), one scale for the whole kit so the
+ * recorded p→f dynamics between takes survive.
+ */
+function sampledHit(v, ctx, t, take, velRaw, rate) {
+  const buf = ctx.createBuffer(1, take.data.length, take.rate);
+  buf.copyToChannel(take.data, 0);
+  const src = v.add(ctx.createBufferSource());
+  src.buffer = buf;
+  src.playbackRate.value = rate;
+  const level = Math.min(1.3, take.vel ? Math.pow(velRaw / take.vel, 2) : 1);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(level, t + 0.002); // click guard: recordings can start abruptly
+  src.connect(g).connect(v.out);
+  const natural = t + take.data.length / take.rate / rate;
+  src.start(t);
+  src.stop(natural + 0.01);
+  return natural;
+}
+
+/** The kit's take for a drum voice, or null while the bank is still decoding (falls through to the synth). */
+const drumTake = (kind, freq, velRaw) => getBankTake(kind, freq, velRaw);
+
 const DRUMS = {
   kick(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // the tune knob is the beater-side skin tension: it resamples the recording (30-150 Hz)
+    const f = p.tune * ratio;
+    const take = drumTake('kick', f, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, f / take.freq);
     const o = v.add(osc(ctx, 'sine', p.sweep * ratio, t));
     o.frequency.exponentialRampToValueAtTime(Math.max(20, p.tune * ratio), t + p.sweepTime);
     const amp = ctx.createGain();
@@ -156,6 +196,9 @@ const DRUMS = {
   },
 
   snare(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // a snare has no "tune" worth resampling by — play the take at its natural pitch, transpose by key
+    const take = drumTake('snare', 73.416 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
     const o = v.add(osc(ctx, 'triangle', p.tone * ratio * 1.5, t));
     o.frequency.exponentialRampToValueAtTime(p.tone * ratio, t + 0.02);
     const tg = ctx.createGain();
@@ -176,6 +219,9 @@ const DRUMS = {
   },
 
   clap(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // real hand claps (world-percussion), natural pitch + key transpose
+    const take = drumTake('clap', 77.782 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
     const n = v.add(noiseSource(ctx, false));
     const bp = filter(ctx, 'bandpass', p.color * ratio * timbre(velRaw, 0.8), 1.8);
     const hp = filter(ctx, 'highpass', 600);
@@ -199,6 +245,12 @@ const DRUMS = {
   },
 
   hat(v, ctx, p, { t, vel, velRaw, ratio: pitchRatio }) {
+    // the kit's open takes (semi/open/long-open) sit one semitone zone up: a long decay preset is an
+    // open hat, so it picks the open zone instead of letting a closed take ring synth-style
+    const openTake = drumTake('hat', 116.541 * pitchRatio, velRaw);
+    const closedTake = drumTake('hat', 92.499 * pitchRatio, velRaw);
+    const take = p.decay >= 0.25 ? (openTake || closedTake) : (closedTake || openTake);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, pitchRatio);
     const ratio = pitchRatio * timbre(velRaw, 0.85); // softer = a touch darker (a hat has no "body" pitch to keep)
     const end = t + p.decay + 0.02;
     const bp = filter(ctx, 'bandpass', Math.min(16000, p.color * ratio), 0.9);
@@ -218,7 +270,9 @@ const DRUMS = {
     return end;
   },
 
-  cymbal(v, ctx, p, { t, vel, ratio }) {
+  cymbal(v, ctx, p, { t, vel, ratio, velRaw }) {
+    const take = drumTake('cymbal', 138.591 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
     const end = t + p.decay + 0.05;
     const hp = filter(ctx, 'highpass', p.color * 0.6 * ratio);
     const bp = filter(ctx, 'bandpass', Math.min(15000, p.color * ratio), 0.5);
@@ -235,8 +289,11 @@ const DRUMS = {
     return end;
   },
 
-  tom(v, ctx, p, { t, vel, ratio }) {
+  tom(v, ctx, p, { t, vel, ratio, velRaw }) {
     const f = p.pitch * ratio;
+    // three recorded toms (low/mid/high zones); the pitch knob resamples the nearest one
+    const take = drumTake('tom', f, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, f / take.freq);
     const o = v.add(osc(ctx, 'sine', f * (1 + p.sweep), t));
     o.frequency.exponentialRampToValueAtTime(f, t + p.decay * 0.6);
     const amp = ctx.createGain();
@@ -248,7 +305,9 @@ const DRUMS = {
     return end;
   },
 
-  rim(v, ctx, p, { t, vel, ratio }) {
+  rim(v, ctx, p, { t, vel, ratio, velRaw }) {
+    const take = drumTake('rim', 98.0 * ratio, velRaw);   // side-stick takes, natural pitch + key transpose
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
     const o = v.add(osc(ctx, 'triangle', p.pitch * ratio, t));
     const o2 = v.add(osc(ctx, 'square', p.pitch * ratio * 1.48, t));
     const hp = filter(ctx, 'highpass', 500);
@@ -285,7 +344,10 @@ const DRUMS = {
     return end;
   },
 
-  shaker(v, ctx, p, { t, vel, ratio }) {
+  shaker(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // real maracas takes (world-percussion), natural pitch + key transpose
+    const take = drumTake('shaker', 466.164 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
     const n = v.add(noiseSource(ctx, false));
     const bp = filter(ctx, 'bandpass', p.color * ratio, 1.2);
     const hp = filter(ctx, 'highpass', 2500);
@@ -297,7 +359,12 @@ const DRUMS = {
     return end;
   },
 
-  perc(v, ctx, p, { t, vel, ratio }) {
+  perc(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // sampled congas (world-percussion): the pitch knob (100-2000 Hz, default 400) is relative —
+    // 400 plays a take at its natural pitch, and the lookup sweeps the low/mid/high conga zones
+    const k = p.pitch / 400;
+    const take = drumTake('perc', 130.813 * ratio * k, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio * k);
     const f = p.pitch * ratio;
     const o = v.add(osc(ctx, p.wave, f * (1 + p.sweep * 2), t));
     o.frequency.exponentialRampToValueAtTime(f, t + Math.max(0.005, p.decay * 0.4));
@@ -308,6 +375,216 @@ const DRUMS = {
     o.stop(end);
     if (p.noise > 0.01) noiseBurst(v, ctx, t, vel * p.noise * 0.6, p.decay * 0.5, 1200);
     return end;
+  },
+
+  // ------------------------------------------------------ Orff classroom percussion (奥尔夫课堂打击)
+
+  triangle(v, ctx, p, { t, vel, ratio }) {
+    const end = t + p.decay + 0.05;
+    const hp = filter(ctx, 'highpass', 1800 * ratio);
+    const bp = filter(ctx, 'bandpass', Math.min(15000, p.tone * ratio), 0.6);
+    const amp = ctx.createGain();
+    percEnv(amp.gain, t, vel * 0.8, p.decay, 0.002);
+    hp.connect(bp).connect(amp).connect(v.out);
+    // the open triangle's shimmer: a stack of high inharmonic partials above a wash of struck noise
+    metallic(v, ctx, t, (p.tone * ratio) / 8.2, end, hp, 0.5);
+    const n = v.add(noiseSource(ctx, false));
+    const ng = ctx.createGain();
+    ng.gain.value = 0.5;
+    n.connect(ng).connect(hp);
+    n.start(t);
+    n.stop(end);
+    if (p.strike > 0.01) noiseBurst(v, ctx, t, vel * p.strike * 0.5, 0.01, 6000);
+    return end;
+  },
+
+  bells(v, ctx, p, { t, vel, ratio }) {
+    const f = p.tone * ratio;
+    const out = ctx.createGain();
+    out.gain.value = vel;
+    out.connect(v.out);
+    // two small bells struck together: a near-pure ping, an inharmonic "clash" that dies quickly
+    const parts = [[1, 0.9, p.decay], [2.71, 0.3, p.decay * 0.45], [5.4, 0.12, p.decay * 0.2]];
+    let last = t;
+    for (const [r, a, d] of parts) {
+      const o = v.add(osc(ctx, 'sine', f * r, t));
+      const g = ctx.createGain();
+      const e = percEnv(g.gain, t, a, d, 0.002);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(e);
+      last = Math.max(last, e);
+    }
+    noiseBurst(v, ctx, t, vel * 0.15, 0.008, 5000);
+    return last;
+  },
+
+  tambourine(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // single-tap takes (world-percussion 01_, not the fast rolls): replace jingles+skin entirely
+    const take = drumTake('tambourine', 185.0 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
+    let end = t + 0.01;
+    if (p.jingles > 0.01) {
+      const jEnd = t + p.decay + 0.03;
+      const bp = filter(ctx, 'bandpass', Math.min(14000, p.color * Math.sqrt(ratio)), 0.8);
+      const hp = filter(ctx, 'highpass', 3000);
+      const amp = ctx.createGain();
+      percEnv(amp.gain, t, vel * p.jingles * 1.1, p.decay, 0.001);
+      hp.connect(bp).connect(amp).connect(v.out);
+      metallic(v, ctx, t, p.color * 0.12 * Math.sqrt(ratio), jEnd, hp, p.jingles * 0.9);
+      const n = v.add(noiseSource(ctx, false));
+      const ng = ctx.createGain();
+      ng.gain.value = p.jingles * 0.9;
+      n.connect(ng).connect(hp);
+      n.start(t);
+      n.stop(jEnd);
+      end = jEnd;
+    }
+    if (p.skin > 0.01) {
+      const o = v.add(osc(ctx, 'triangle', 190 * ratio, t));
+      o.frequency.exponentialRampToValueAtTime(150 * ratio, t + 0.04);
+      const g = ctx.createGain();
+      const se = percEnv(g.gain, t, vel * p.skin * 0.9, 0.07, 0.002);
+      o.connect(g).connect(v.out);
+      o.start(t);
+      o.stop(se);
+      end = Math.max(end, se);
+    }
+    return end;
+  },
+
+  castanets(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // real castanet takes (world-percussion), natural pitch + key transpose
+    const take = drumTake('castanets', 466.164 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
+    const f = p.tone * ratio;
+    const o = v.add(osc(ctx, 'triangle', f * 1.35, t));
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.012);
+    const amp = ctx.createGain();
+    const end = percEnv(amp.gain, t, vel * 0.85, p.decay, 0.001);
+    o.connect(amp).connect(v.out);
+    o.start(t);
+    o.stop(end);
+    if (p.click > 0.01) noiseBurst(v, ctx, t, vel * p.click * 0.55, 0.014, 2600);
+    return end;
+  },
+
+  twotone(v, ctx, p, { t, vel, key, ratio }) {
+    // one bamboo tube, two faces: notes at/above C4 strike the high face, below it the low one
+    const f = p.tone * ratio * (key >= 60 ? 1.3 : 1);
+    const o = v.add(osc(ctx, 'triangle', f * 2.4, t));
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.008);
+    const amp = ctx.createGain();
+    const end = percEnv(amp.gain, t, vel * 0.9, p.decay, 0.001);
+    o.connect(amp).connect(v.out);
+    o.start(t);
+    o.stop(end);
+    const o2 = v.add(osc(ctx, 'sine', f * 0.5, t));
+    const g2 = ctx.createGain();
+    const e2 = percEnv(g2.gain, t, vel * 0.35, p.decay * 1.4, 0.001);
+    o2.connect(g2).connect(v.out);
+    o2.start(t);
+    o2.stop(e2);
+    if (p.click > 0.01) noiseBurst(v, ctx, t, vel * p.click * 0.4, 0.008, 3200);
+    return Math.max(end, e2);
+  },
+
+  sleighbells(v, ctx, p, { t, vel, ratio }) {
+    const n = v.add(noiseSource(ctx, false));
+    const bp = filter(ctx, 'bandpass', Math.min(14000, p.color * Math.sqrt(ratio)), 1.1);
+    const hp = filter(ctx, 'highpass', 2500);
+    const g = ctx.createGain();
+    const gg = g.gain;
+    gg.setValueAtTime(0, t);
+    // a shake is many tiny jingle collisions, strongest at the start of the stroke
+    const steps = 7;
+    for (let i = 0; i < steps; i++) {
+      const s = t + (i * p.shake) / steps;
+      gg.setValueAtTime(vel * (1 - i / steps) * 1.4, s);
+      gg.exponentialRampToValueAtTime(Math.max(1e-4, vel * 0.25), s + (p.shake / steps) * 0.7);
+    }
+    const tail = t + p.shake;
+    gg.setValueAtTime(vel * 0.9, tail);
+    gg.exponentialRampToValueAtTime(0.0001, tail + p.decay);
+    const end = tail + p.decay + 0.03;
+    n.connect(bp).connect(hp).connect(g).connect(v.out);
+    n.start(t);
+    n.stop(end);
+    metallic(v, ctx, t, p.color * 0.14 * Math.sqrt(ratio), end, bp, 0.4);
+    return end;
+  },
+
+  claves(v, ctx, p, { t, vel, velRaw, ratio }) {
+    // real claves takes (world-percussion), natural pitch + key transpose
+    const take = drumTake('claves', 622.254 * ratio, velRaw);
+    if (take) return sampledHit(v, ctx, t, take, velRaw, ratio);
+    const f = p.tone * ratio;
+    const o = v.add(osc(ctx, 'sine', f * 1.02, t));
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.012);
+    const amp = ctx.createGain();
+    const end = percEnv(amp.gain, t, vel * 0.95, p.decay, 0.001);
+    o.connect(amp).connect(v.out);
+    o.start(t);
+    o.stop(end);
+    const o2 = v.add(osc(ctx, 'sine', f * 9.2, t));
+    const g2 = ctx.createGain();
+    const e2 = percEnv(g2.gain, t, vel * 0.2, 0.015, 0.001);
+    o2.connect(g2).connect(v.out);
+    o2.start(t);
+    o2.stop(e2);
+    noiseBurst(v, ctx, t, vel * 0.2, 0.006, 4000);
+    return Math.max(end, e2);
+  },
+
+  guiro(v, ctx, p, { t, vel, ratio }) {
+    const n = v.add(noiseSource(ctx, false));
+    const bp = filter(ctx, 'bandpass', Math.min(12000, p.tone * Math.sqrt(ratio)), 2.2);
+    const g = ctx.createGain();
+    const gg = g.gain;
+    gg.setValueAtTime(0, t);
+    // the stick riding over the notches: one click per tooth
+    const ratchets = Math.max(4, Math.round(p.sweep / p.tooth));
+    for (let i = 0; i < ratchets; i++) {
+      const s = t + (i * p.sweep) / ratchets;
+      gg.setValueAtTime(vel * 1.6, s);
+      gg.exponentialRampToValueAtTime(Math.max(1e-4, vel * 0.2), s + p.tooth * 0.6);
+    }
+    const last = t + ratchets * p.tooth;
+    gg.setValueAtTime(0.0001, last + p.tooth * 0.6);
+    const end = last + p.tooth * 0.7;
+    n.connect(bp).connect(g).connect(v.out);
+    n.start(t);
+    n.stop(end);
+    return end;
+  },
+
+  glockenspiel(v, ctx, p, { t, vel, key }) {
+    const f = midiToFreq(key);
+    v.freq = f;
+    const out = ctx.createGain();
+    out.gain.value = vel * p.gain;
+    out.connect(v.out);
+    // a struck aluminium bar: near-pure fundamental, a faint inharmonic spark that dies at once
+    const parts = [[1, 0.9, p.decay], [3.93, 0.16, p.decay * 0.25], [9.2, 0.06, p.decay * 0.1]];
+    let last = t;
+    for (const [r, a, d] of parts) {
+      const o = v.add(osc(ctx, 'sine', f * r, t));
+      const g = ctx.createGain();
+      const e = percEnv(g.gain, t, a, d, 0.002);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(e);
+      last = Math.max(last, e);
+    }
+    noiseBurst(v, ctx, t, vel * p.hammer * 0.4, 0.01, 4000);
+    v.releaseFn = (time) => {
+      const rt = Math.max(time, t + 0.002);
+      const left = Math.max(0.05, t + p.release - rt);
+      out.gain.cancelScheduledValues(rt);
+      out.gain.setTargetAtTime(0, rt, left / 5);
+      return rt + left;
+    };
+    return last;
   }
 };
 
@@ -539,7 +816,18 @@ export function playNote(ctx, dest, instrument, opts) {
   const args = { t, vel: velocityGain(velRaw), velRaw, key, ratio: Math.pow(2, (key - 60) / 12), glideFrom: opts.glideFrom, buffer: opts.buffer };
   let natural;
   try {
-    if (DRUMS[kind]) natural = DRUMS[kind](v, ctx, p, args);
+    const spec = hasSampleBank(kind) ? modelOf(kind, p) : null;
+    if (spec) {
+      // plucked recordings carry their own decay: let them ring through note-off. Held (bowed / blown) takes loop,
+      // so the note has to be released when the key comes up.
+      natural = modelVoice(v, ctx, spec, args, {
+        level: (p.gain ?? 1) * (SAMPLE_LEVEL[spec.model] ?? 1.4),
+        release: p.release ?? 0.2,
+        damped: !bankLooped(spec.model),
+        glide: p.mono ? (p.glide ?? 0) : 0
+      });
+    }
+    else if (DRUMS[kind]) natural = DRUMS[kind](v, ctx, p, args);
     else if (kind === 'bass808') natural = bass808(v, ctx, p, args);
     else if (kind === 'synth') natural = synth(v, ctx, p, args);
     else if (kind === 'fm') natural = fm(v, ctx, p, args);

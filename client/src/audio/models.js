@@ -5,6 +5,9 @@
 
 const TAU = Math.PI * 2;
 
+// Recorded instruments (guzheng, erhu) answer through the sample bank; everything else is synthesized below.
+import { hasSampleBank, renderSampledNote, levelRecording, bankLooped } from './sampleBank.js';
+
 /** Deterministic noise (xorshift32) so a note renders the same every time. */
 function noise(seed) {
   let s = (seed ^ 0x9e3779b9) >>> 0 || 1;
@@ -550,8 +553,30 @@ const MODELS = {
   koto: { render: renderZither('koto'), keys: ['brightness', 'sustain', 'position'] },
   guzheng: { render: renderZither('guzheng'), keys: ['brightness', 'sustain', 'position'] },
   pipa: { render: renderZither('pipa'), keys: ['brightness', 'sustain', 'position'] },
-  shamisen: { render: renderShamisen, keys: ['thwack', 'sawari', 'brightness', 'sustain'] }
+  shamisen: { render: renderShamisen, keys: ['thwack', 'sawari', 'brightness', 'sustain'] },
+  // recorded instruments: the note comes from a sample bank (sampleBank.js) and these params voice the recording.
+  // The render below is a silent guard only — without a bank the instrument is not offered at all (see modelOf),
+  // so it is never reached on the real path; it keeps a stray call from throwing inside the scheduler.
+  erhu: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'vibrato', 'vibratoRate', 'attack', 'release'] },
+  xiao: { render: () => new Float32Array(2048), keys: ['tone', 'breath', 'chiff', 'vibrato', 'vibratoRate', 'attack', 'release'] },
+  suona: { render: () => new Float32Array(2048), keys: ['tone', 'nasal', 'breath', 'vibrato', 'vibratoRate', 'attack', 'release'] },
+  xun: { render: () => new Float32Array(2048), keys: ['tone', 'breath', 'chiff', 'vibrato', 'vibratoRate', 'attack', 'release'] },
+  muyu: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  timpani: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  hang: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  eguitar: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  // the concert flute is an upgrade, not a new instrument: the wind synth in world.js stays as the
+  // fallback, and the recording (sample bank) takes over the same kind as soon as it has landed
+  flute: { render: () => new Float32Array(2048), keys: ['tone', 'vibrato', 'vibratoRate', 'attack', 'release'] },
+  oboe: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  clarinet: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  bassoon: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  horn: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] },
+  violin: { render: () => new Float32Array(2048), keys: ['brightness', 'body', 'release'] }
 };
+
+/** Instruments that exist only as recordings: they are offered while their bank is loaded. */
+const SAMPLE_ONLY = new Set(['erhu', 'xiao', 'suona', 'xun', 'muyu', 'timpani', 'hang', 'eguitar', 'oboe', 'clarinet', 'bassoon', 'horn', 'violin']);
 
 const subsets = new WeakMap();
 /**
@@ -559,7 +584,11 @@ const subsets = new WeakMap();
  * that shape the rendered note and id is its cache-key form. `params` must be a stable, complete params object.
  */
 export function modelOf(kind, params) {
-  const model = kind === 'strings' ? (params.articulation === 'pizzicato' ? 'pizzicato' : null) : MODELS[kind] ? kind : null;
+  const model = kind === 'strings'
+    ? (params.articulation === 'pizzicato' ? 'pizzicato' : null)
+    : MODELS[kind] ? kind
+      : SAMPLE_ONLY.has(kind) && hasSampleBank(kind) ? kind
+        : null;
   if (!model) return null;
   let s = subsets.get(params);
   if (!s || s.model !== model) {
@@ -573,7 +602,11 @@ export function modelOf(kind, params) {
 
 /** Render one note of a model (pure; used directly by the worker and by tests). */
 export function renderModel(model, sr, key, layer, p) {
-  return MODELS[model].render(sr, key, layerVelocity(layer), p);
+  const recorded = renderSampledNote(model, sr, key, layerVelocity(layer), p);
+  // a held take is levelled by its steady state (0.25 s in, past the attack), a plucked one by its attack
+  if (recorded) return levelRecording(recorded, sr, 30, bankLooped(model) ? 0.25 : 0);
+  const def = MODELS[model];
+  return def?.render ? def.render(sr, key, layerVelocity(layer), p || {}) : new Float32Array(2048);
 }
 
 // ------------------------------------------------------------------ cache
@@ -618,6 +651,16 @@ export function pinNotes(keys) {
 
 /** Has this note been rendered? (no LRU update) */
 export const isCached = (k) => cache.has(k);
+
+/**
+ * Drop every rendered note. Called when the sample bank finishes loading: notes rendered before it (the synthesized
+ * guzheng, no erhu at all) must not be served afterwards. The workers keep their own copies, but nothing asks them
+ * for a recorded instrument again.
+ */
+export function clearModelCache() {
+  cache.clear();
+  cachedSamples = 0;
+}
 
 /** A rendered note, cached; `wrap` turns the Float32Array into what is stored (e.g. an AudioBuffer). */
 export function modelNote(spec, sr, key, layer, wrap = (x) => x) {

@@ -150,7 +150,7 @@ export async function runSampleEditJob(job) {
   await st.refreshSamples();
   const sample = useStore.getState().samples.find((x) => x.id === job.sampleId);
   if (!sample) throw new Error(`Sample ${job.sampleId} not found`);
-  if (!Array.isArray(job.ops) || !job.ops.length) throw new Error('No operations');
+  if (!Array.isArray(job.ops) || !job.ops.length) throw new Error('没有任何操作');
   let clip = await decodeSample(sample);
   const notes = [];
   for (const op of job.ops) {

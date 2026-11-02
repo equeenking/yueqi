@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { EFFECTS, uid, ticksPerBar, STEP } from '@greanteadawy/core';
+import { EFFECTS, uid, ticksPerBar, STEP, isDefaultInsertName } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { DragNumber } from './ui/Controls.jsx';
@@ -7,11 +7,11 @@ import { normalize } from '../audio/dsp.js';
 import { useElementSize, capturePointer } from '../lib/hooks.js';
 
 const CH_PARAMS = [
-  ['volume', 'Volume', (c) => c.volume / 1.25],
-  ['pan', 'Pan', (c) => (c.pan + 1) / 2],
-  ['filterCutoff', 'Filter cutoff', (c) => Math.log(c.filterCutoff / 20) / Math.log(1000)],
-  ['filterRes', 'Filter resonance', (c) => Math.log(c.filterRes / 0.1) / Math.log(200)],
-  ['pitch', 'Pitch', (c) => (c.pitch + 24) / 48]
+  ['volume', '音量', (c) => c.volume / 1.25],
+  ['pan', '声像', (c) => (c.pan + 1) / 2],
+  ['filterCutoff', '滤波截止', (c) => Math.log(c.filterCutoff / 20) / Math.log(1000)],
+  ['filterRes', '滤波共振', (c) => Math.log(c.filterRes / 0.1) / Math.log(200)],
+  ['pitch', '音高', (c) => (c.pitch + 24) / 48]
 ];
 
 export function describeTarget(project, t) {
@@ -50,14 +50,14 @@ export function AutomationCreateMenu() {
   const open = (e) => {
     const p = useStore.getState().project;
     const items = [
-      { header: 'Create automation clip' },
-      { label: 'Channels', submenu: p.channels.map((c) => ({ label: c.name, submenu: CH_PARAMS.map(([param, label, get]) => ({ label, onClick: () => createAutomationFor({ type: 'channel', id: c.id, param }, get(c), `${c.name} ${label}`) })) })) },
-      { label: 'Mixer', submenu: p.mixer.map((m, i) => ({ label: `${i === 0 ? 'Master' : `${i}. ${m.name}`}`, submenu: [
-        { label: 'Volume', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'volume' } : { type: 'mixer', index: i, param: 'volume' }, m.volume / 1.25, `${m.name} Volume`) },
-        { label: 'Pan', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'pan' } : { type: 'mixer', index: i, param: 'pan' }, (m.pan + 1) / 2, `${m.name} Pan`) }
-      ] })).filter((x, i) => i === 0 || !/^Insert \d+$/.test(p.mixer[i].name)) },
-      { label: 'Effects', disabled: !p.mixer.some((m) => m.effects.length), submenu: p.mixer.flatMap((m, i) => m.effects.map((fx) => ({
-        label: `${i === 0 ? 'Master' : m.name}: ${EFFECTS[fx.type].label}`,
+      { header: '新建自动化片段' },
+      { label: '通道数', submenu: p.channels.map((c) => ({ label: c.name, submenu: CH_PARAMS.map(([param, label, get]) => ({ label, onClick: () => createAutomationFor({ type: 'channel', id: c.id, param }, get(c), `${c.name} ${label}`) })) })) },
+      { label: '混音台', submenu: p.mixer.map((m, i) => ({ label: `${i === 0 ? '主输出' : `${i}. ${m.name}`}`, submenu: [
+        { label: '音量', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'volume' } : { type: 'mixer', index: i, param: 'volume' }, m.volume / 1.25, `${m.name} Volume`) },
+        { label: '声像', onClick: () => createAutomationFor(i === 0 ? { type: 'master', param: 'pan' } : { type: 'mixer', index: i, param: 'pan' }, (m.pan + 1) / 2, `${m.name} Pan`) }
+      ] })).filter((x, i) => i === 0 || !isDefaultInsertName(p.mixer[i].name)) },
+      { label: '效果', disabled: !p.mixer.some((m) => m.effects.length), submenu: p.mixer.flatMap((m, i) => m.effects.map((fx) => ({
+        label: `${i === 0 ? '主输出' : m.name}: ${EFFECTS[fx.type].label}`,
         submenu: EFFECTS[fx.type].params.filter((d) => d.automatable).map((d) => ({
           label: d.label,
           onClick: () => createAutomationFor({ type: 'effect', index: i, effectId: fx.id, param: d.key }, normalize(fx.params[d.key], d), `${EFFECTS[fx.type].label} ${d.label}`)
@@ -66,14 +66,14 @@ export function AutomationCreateMenu() {
     ];
     st.showContextMenu(e, items);
   };
-  return <button className="tbtn small text" title="Create an automation clip" onClick={open}>Auto +</button>;
+  return <button className="tbtn small text" title="创建自动化片段" onClick={open}>自动 +</button>;
 }
 
 const SHAPES = {
-  'Ramp up': () => [{ t: 0, v: 0 }, { t: 1, v: 1 }],
-  'Ramp down': () => [{ t: 0, v: 1 }, { t: 1, v: 0 }],
+  '上升斜坡': () => [{ t: 0, v: 0 }, { t: 1, v: 1 }],
+  '下降斜坡': () => [{ t: 0, v: 1 }, { t: 1, v: 0 }],
   Swell: () => [{ t: 0, v: 0.1 }, { t: 0.5, v: 1 }, { t: 1, v: 0.1 }],
-  'Sine LFO': () => Array.from({ length: 33 }, (_, i) => ({ t: i / 32, v: 0.5 + 0.5 * Math.sin((i / 32) * Math.PI * 8) })),
+  '正弦低频振荡': () => Array.from({ length: 33 }, (_, i) => ({ t: i / 32, v: 0.5 + 0.5 * Math.sin((i / 32) * Math.PI * 8) })),
   Steps: () => [0, 0.25, 0.5, 0.75].flatMap((x, i) => [{ t: x, v: [0.2, 0.8, 0.5, 1][i] }, { t: x + 0.249, v: [0.2, 0.8, 0.5, 1][i] }]),
   Flat: () => [{ t: 0, v: 0.5 }, { t: 1, v: 0.5 }]
 };
@@ -90,8 +90,8 @@ export function AutomationEditor() {
 
   if (!a) {
     return (
-      <Window name="automation" title="Automation" icon="wave" toolbar={<AutomationCreateMenu />}>
-        <p className="empty-hint">No automation clips yet. Use “Auto +” to automate a volume, filter or effect parameter over time (song mode).</p>
+      <Window name="automation" title="自动化" icon="wave" toolbar={<AutomationCreateMenu />}>
+        <p className="empty-hint">还没有自动化片段：点「Auto +」给音量、滤波或效果参数画一条随时间变化的曲线（歌曲模式）。</p>
       </Window>
     );
   }
@@ -144,17 +144,17 @@ export function AutomationEditor() {
         {project.automations.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
       </select>
       <span className="label">{describeTarget(project, a.target)}</span>
-      <span className="label">Bars</span>
+      <span className="label">小节</span>
       <DragNumber value={Math.round((a.length / bar) * 100) / 100} min={0.25} max={64} step={0.25} sensitivity={0.05}
         onChange={(v) => st.dispatch([{ type: 'automation/update', id: a.id, patch: { length: Math.round(v * bar), points: a.points.map((p) => ({ t: p.t * (Math.round(v * bar) / a.length), v: p.v })) } }], { coalesce: `autolen:${a.id}` })} />
       <select className="ui-select" value="" onChange={(e) => { const f = SHAPES[e.target.value]; if (f) setPoints(f().map((p) => ({ t: Math.round(p.t * a.length), v: p.v })), null); }} onKeyDown={(e) => e.stopPropagation()}>
-        <option value="">Shape…</option>
+        <option value="">形状…</option>
         {Object.keys(SHAPES).map((k) => <option key={k} value={k}>{k}</option>)}
       </select>
       <AutomationCreateMenu />
-      <button className="tbtn small text danger" title="Delete this automation" onClick={async () => {
-        if (await st.confirm({ title: `Delete automation "${a.name}"?`, danger: true, okLabel: 'Delete' })) st.dispatch([{ type: 'automation/remove', id: a.id }]);
-      }}>Delete</button>
+      <button className="tbtn small text danger" title="删除此自动化" onClick={async () => {
+        if (await st.confirm({ title: `Delete automation "${a.name}"?`, danger: true, okLabel: '删除' })) st.dispatch([{ type: 'automation/remove', id: a.id }]);
+      }}>删除</button>
     </>
   );
 
@@ -162,7 +162,7 @@ export function AutomationEditor() {
   const beats = [];
   for (let t = 0; t <= a.length; t += 96) beats.push(t);
   return (
-    <Window name="automation" title={`Automation — ${a.name}`} icon="wave" toolbar={toolbar} minW={360} minH={160}>
+    <Window name="automation" title={`自动化 — ${a.name}`} icon="wave" toolbar={toolbar} minW={360} minH={160}>
       <div className="auto-editor" ref={wrap} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}
         onPointerLeave={() => setHover(null)} onContextMenu={(e) => e.preventDefault()}>
         <svg width={W} height={H}>
@@ -173,7 +173,7 @@ export function AutomationEditor() {
           {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={5} className="pt" />)}
         </svg>
         {hover && <div className="auto-readout">{Math.round(hover.v * 100)}% @ bar {Math.floor(hover.t / bar) + 1}.{Math.floor((hover.t % bar) / 96) + 1}</div>}
-        <div className="auto-help">Click: add point · drag: move · right-click: delete</div>
+        <div className="auto-help">单击加点 · 拖动移动 · 右键删除</div>
       </div>
     </Window>
   );

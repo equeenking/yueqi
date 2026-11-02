@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { getEngine } from '../audio/index.js';
 import { useStore } from '../state/store.js';
 
+/** Touch-first device (iPad, 一体机)：界面据此放大触摸目标。 */
+export const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+
 /** Current transport position in ticks (null when stopped). Polls each animation frame. */
 export function getPlayheadTick() {
   const eng = getEngine();

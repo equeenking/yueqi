@@ -59,7 +59,7 @@ export function Visualizer({ width = 88, height = 30 }) {
     }
   });
   return (
-    <canvas ref={ref} className="visualizer" style={{ width, height }} title="Master output (click: scope / spectrum)"
+    <canvas ref={ref} className="visualizer" style={{ width, height }} title="主输出（单击：示波／频谱）"
       onClick={() => setMode((m) => (m === 'scope' ? 'spectrum' : 'scope'))} />
   );
 }

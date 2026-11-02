@@ -29,7 +29,7 @@ export function installKeyboard() {
 
     if (mod && e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) st.redo(); else st.undo(); return; }
     if (mod && e.code === 'KeyY') { e.preventDefault(); st.redo(); return; }
-    if (mod && e.code === 'KeyS') { e.preventDefault(); st.toast('Projects save automatically', 'info', 1800); return; }
+    if (mod && e.code === 'KeyS') { e.preventDefault(); st.toast('工程会自动保存', 'info', 1800); return; }
     if (mod) return; // leave other ctrl shortcuts to focused editors / browser
 
     switch (e.code) {
@@ -65,8 +65,8 @@ export function installKeyboard() {
     }
     if (e.target.closest?.('.piano-roll-grid, .playlist-grid') && ['Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
     if (e.code === 'ArrowDown' && e.shiftKey) return;
-    if (e.code === 'Minus' && !e.repeat) { const o = Math.max(0, st.kbOctave - 1); st.setPref('kbOctave', o); st.toast(`Keyboard octave C${o}`, 'info', 1000); return; }
-    if (e.code === 'Equal' && e.shiftKey && !e.repeat) { const o = Math.min(8, st.kbOctave + 1); st.setPref('kbOctave', o); st.toast(`Keyboard octave C${o}`, 'info', 1000); return; }
+    if (e.code === 'Minus' && !e.repeat) { const o = Math.max(0, st.kbOctave - 1); st.setPref('kbOctave', o); st.toast(`电脑键盘八度 C${o}`, 'info', 1000); return; }
+    if (e.code === 'Equal' && e.shiftKey && !e.repeat) { const o = Math.min(8, st.kbOctave + 1); st.setPref('kbOctave', o); st.toast(`电脑键盘八度 C${o}`, 'info', 1000); return; }
     if (e.shiftKey) return;
     const semi = PIANO[e.code];
     if (semi !== undefined) {
@@ -100,27 +100,27 @@ export function installKeyboard() {
 }
 
 export const SHORTCUTS = [
-  ['Space', 'Play / stop'],
-  ['Shift+L', 'Toggle pattern / song mode'],
-  ['F4', 'New pattern'],
-  ['F5 / F6 / F7 / F8 / F9', 'Playlist / Channel rack / Piano roll / Channel settings / Mixer'],
-  ['Alt+F8', 'Toggle browser'],
-  ['Ctrl+Z / Ctrl+Y', 'Undo / redo (also undoes Claude\'s edits)'],
-  ['Z S X D C V … / Q 2 W 3 E …', 'Play the selected channel from your computer keyboard (two octaves)'],
-  ['- / Shift+=', 'Keyboard octave down / up'],
-  ['Numpad + / -', 'Next / previous pattern'],
-  ['Channel rack: Ctrl+click a channel light', 'Solo the channel'],
-  ['Piano roll: click / drag', 'Draw notes, drag to move, drag right edge to resize, right-click to delete'],
-  ['Piano roll: Shift+click / Ctrl+drag', 'Add to selection / box select'],
-  ['Piano roll: Alt+drag', 'Duplicate the dragged notes'],
-  ['Piano roll: Ctrl+A, Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D, Del', 'Select all, copy, cut, paste, duplicate, delete'],
-  ['Piano roll: Ctrl+Q', 'Quantize (selection or all)'],
-  ['Piano roll: ↑ ↓ (Shift = octave), ← →', 'Transpose / nudge selected notes'],
-  ['Playlist: click / drag', 'Paint the selected pattern, drag clips, edges resize/trim, right-click for options'],
-  ['Playlist: Shift+drag, Ctrl+A, Ctrl+D, Del', 'Duplicate clips, select all, duplicate selection, delete'],
-  ['Wave editor: drag / Shift+click / double-click', 'Select a range / extend it / select everything'],
-  ['Wave editor: Space, Ctrl+Z, Ctrl+Shift+Z', 'Play the selection; undo / redo (the editor\'s own history)'],
-  ['Wave editor: Ctrl+X, Ctrl+C, Ctrl+V, Ctrl+A, Del, + / −', 'Cut, copy, paste, select all, delete, zoom'],
-  ['Pitch correction: drag a note (Alt = fine), ↑ ↓, 0, B, [ ], Esc', 'Move it, nudge it, back to the scale, bypass, previous / next note, deselect'],
-  ['Knobs & faders', 'Drag up/down (Shift = fine), wheel, double-click to reset; Tab to focus, then arrow keys, Home/End, Delete']
+  ['空格', '播放／停止'],
+  ['Shift+L', '切换 片段模式／歌曲模式'],
+  ['F4', '新建片段'],
+  ['F5 / F6 / F7 / F8 / F9', '播放列表／通道架／钢琴卷帘／通道设置／混音台'],
+  ['Alt+F8', '显示／隐藏浏览器'],
+  ['Ctrl+Z / Ctrl+Y', '撤销／重做（Claude 的改动也能撤）'],
+  ['Z S X D C V … / Q 2 W 3 E …', '用电脑键盘弹所选通道（两个八度）'],
+  ['- / Shift+=', '电脑键盘八度下移／上移'],
+  ['Numpad + / -', '下一个／上一个片段'],
+  ['通道架：Ctrl+单击通道灯', '独奏该通道'],
+  ['钢琴卷帘：单击／拖动', '画音符，拖动移动，拖右边缘改长度，右键删除'],
+  ['钢琴卷帘：Shift+单击／Ctrl+拖动', '加入选区／框选'],
+  ['钢琴卷帘：Alt+拖动', '复制正在拖动的音符'],
+  ['钢琴卷帘：Ctrl+A、Ctrl+C、Ctrl+X、Ctrl+V、Ctrl+D、Del', '全选、复制、剪切、粘贴、复制一份、删除'],
+  ['钢琴卷帘：Ctrl+Q', '量化（选区或全部）'],
+  ['钢琴卷帘：↑ ↓（Shift＝移八度）、← →', '所选音符移调／微调'],
+  ['播放列表：单击／拖动', '画出所选片段，拖动片段，拖边缘改变长度／裁切，右键打开选项'],
+  ['播放列表：Shift+拖动、Ctrl+A、Ctrl+D、Del', '复制片段、全选、复制选区、删除'],
+  ['波形编辑器：拖动／Shift+单击／双击', '选择区间／扩展选区／全选'],
+  ['波形编辑器：空格、Ctrl+Z、Ctrl+Shift+Z', '播放选区；撤销／重做（编辑器自己的历史）'],
+  ['波形编辑器：Ctrl+X、Ctrl+C、Ctrl+V、Ctrl+A、Del、+ / −', '剪切、复制、粘贴、全选、删除、缩放'],
+  ['音高修正：拖动音符（Alt＝微调）、↑ ↓、0、B、[ ]、Esc', '移动音符、微调、回到音阶、旁通、上一个／下一个音符、取消选择'],
+  ['旋钮与推子', '上下拖动（Shift＝微调）、滚轮、双击复位；Tab 聚焦后可用方向键、Home／End、Delete']
 ];

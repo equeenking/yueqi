@@ -3,6 +3,7 @@
 // that still isn't ready when it plays is rendered on the spot (see noteBuffer).
 import { getInstrumentDef, instrumentDefaults } from '@greanteadawy/core';
 import { modelOf, noteCacheKey, cacheGet, cachePut, layerOf, renderModel, pinNotes, isCached, LAYERS } from './models.js';
+import { hasSampleBank } from './sampleBank.js';
 
 const MAX_PREWARM = 400; // distinct notes per project — the cache holds ~24M samples anyway
 
@@ -85,6 +86,13 @@ function renderInBackground(sr, spec, key, layer) {
   const k = noteCacheKey(spec, sr, key, layer);
   if (cacheGet(k)) return null;
   if (inflight.has(k)) return inflight.get(k);
+  // recorded instruments render here, not in a worker: the recordings live on this thread only
+  if (hasSampleBank(spec.model)) {
+    const own = new Promise((resolve) => setTimeout(() => { noteBuffer(sr, spec, key, layer); resolve(); }, 0))
+      .finally(() => inflight.delete(k));
+    inflight.set(k, own);
+    return own;
+  }
   const ws = pool();
   let promise;
   if (ws.length) {

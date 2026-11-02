@@ -5,7 +5,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', 'data/**', 'test-results/**', 'playwright-report/**', 'scripts/backup/**', 'scripts/backup2/**'] },
   js.configs.recommended,
   {
     files: ['**/*.{js,mjs,jsx}'],

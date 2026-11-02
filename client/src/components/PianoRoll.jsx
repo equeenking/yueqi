@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import {
-  STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, SCALES, scalePitchClasses,
-  quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS
-} from '@greanteadawy/core';
+import { STEP, PPQ, ticksPerBar, patternLength, uid, noteName, chordNotes, STAMP_CHORDS, SCALES, scalePitchClasses, quantizeNotes, legatoNotes, humanizeNotes, INSTRUMENTS, scaleLabel } from '@greanteadawy/core';
 import { useStore } from '../state/store.js';
 import { Window } from './ui/Window.jsx';
 import { Icon } from './ui/Icon.jsx';
 import { Select } from './ui/Controls.jsx';
-import { usePlayheadLine, capturePointer } from '../lib/hooks.js';
+import { usePlayheadLine, capturePointer, COARSE } from '../lib/hooks.js';
+import { attachPinchZoom } from '../lib/touch.js';
 import { SNAP_OPTIONS, snapTicks, gesture } from '../lib/actions.js';
 import { getEngine } from '../audio/index.js';
 
@@ -43,15 +41,25 @@ export function PianoRoll() {
   const [tool, setTool] = useState('draw');
   const [stamp, setStamp] = useState('m');
   const [ppt, setPpt] = useState(1); // pixels per tick (24px per step)
-  const [keyH, setKeyH] = useState(14);
+  const [keyH, setKeyH] = useState(COARSE ? 18 : 14);
   const [scaleOn, setScaleOn] = useState(true);
   const [ghosts, setGhosts] = useState(true);
+  const [help, setHelp] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [preview, setPreview] = useState(null); // Map id -> note while dragging
   const [box, setBox] = useState(null);
   const lastLength = useRef(STEP * 2);
   const drag = useRef(null);
   const scrollRef = useRef(null);
+  const rulerRef = useRef(null);
+  const pptRef = useRef(ppt);
+  pptRef.current = ppt;
+  // 标尺双指捏合缩放(库乐队同款),捏合中点的内容位置不动
+  useEffect(() => {
+    const el = rulerRef.current;
+    if (!el) return undefined;
+    return attachPinchZoom(el, { get: () => pptRef.current, set: setPpt, min: 0.25, max: 4, scroller: scrollRef.current });
+  }, []);
   const playRef = useRef(null);
   const gridRef = useRef(null);
   const velDrag = useRef(null);
@@ -100,8 +108,8 @@ export function PianoRoll() {
 
   if (!channel) {
     return (
-      <Window name="pianoRoll" title="Piano roll" icon="piano">
-        <p className="empty-hint">Add a channel first.</p>
+      <Window name="pianoRoll" title="钢琴卷帘" icon="piano">
+        <p className="empty-hint">请先添加通道。</p>
       </Window>
     );
   }
@@ -299,7 +307,7 @@ export function PianoRoll() {
       return;
     }
     if (mod && e.code === 'KeyA') { e.preventDefault(); setSelected(new Set(notes.map((n) => n.id))); return; }
-    if (mod && e.code === 'KeyC') { e.preventDefault(); clipboard = (sel.length ? sel : notes).map((n) => ({ ...n })); st.toast(`Copied ${clipboard.length} notes`, 'info', 1000); return; }
+    if (mod && e.code === 'KeyC') { e.preventDefault(); clipboard = (sel.length ? sel : notes).map((n) => ({ ...n })); st.toast(`已复制 ${clipboard.length} 个音符`, 'info', 1000); return; }
     if (mod && e.code === 'KeyX') { e.preventDefault(); clipboard = sel.map((n) => ({ ...n })); deleteIds(sel.map((n) => n.id)); return; }
     if (mod && (e.code === 'KeyV' || e.code === 'KeyD')) {
       e.preventDefault();
@@ -378,39 +386,41 @@ export function PianoRoll() {
 
   const toolbar = (
     <>
-      <Select value={channel.id} title="Channel" className="pr-channel" onChange={(id) => useStore.setState({ pianoRollChannelId: id, selectedChannelId: id })}
+      <Select value={channel.id} title="通道" className="pr-channel" onChange={(id) => useStore.setState({ pianoRollChannelId: id, selectedChannelId: id })}
         options={project.channels.map((c) => ({ value: c.id, label: c.name }))} />
       <span className="sep" />
-      {toolBtn('draw', 'draw', 'Draw (click to add, drag to move)')}
-      {toolBtn('select', 'select', 'Select (box select). Ctrl+drag also selects')}
-      {toolBtn('erase', 'erase', 'Erase (or right-click notes)')}
-      {toolBtn('stamp', 'stamp', 'Chord stamp')}
+      {toolBtn('draw', 'draw', '绘制（单击添加，拖动移动）')}
+      {toolBtn('select', 'select', '选择（框选）。Ctrl+拖动也可选择')}
+      {toolBtn('erase', 'erase', '擦除（或右键音符）')}
+      {toolBtn('stamp', 'stamp', '和弦印章')}
       {tool === 'stamp' && (
-        <Select value={stamp} onChange={setStamp} title="Chord type" options={STAMP_CHORDS.map(([label, q]) => ({ value: q, label }))} />
+        <Select value={stamp} onChange={setStamp} title="和弦类型" options={STAMP_CHORDS.map(([label, q]) => ({ value: q, label }))} />
       )}
       <span className="sep" />
       <Icon name="magnet" size={13} />
-      <Select value={snap} onChange={(v) => st.setPref('snap', v)} title="Snap" options={SNAP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
+      <Select value={snap} onChange={(v) => st.setPref('snap', v)} title="吸附" options={SNAP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
       <span className="sep" />
-      <button className="tbtn small text" title="Quantize (Ctrl+Q) — selection or all" onClick={doQuantize}>Q</button>
-      <button className="tbtn small text" title="Legato — extend notes to the next note" onClick={() => applyTransform(legatoNotes, 'pr-legato')}>Leg</button>
-      <button className="tbtn small text" title="Humanize timing & velocity" onClick={() => applyTransform((l) => humanizeNotes(l, { timing: 3, velocity: 0.12 }), 'pr-human')}>Hum</button>
-      <button className="tbtn small text" title="Transpose up an octave" onClick={() => applyTransform((l) => (l.some((n) => n.key > 115) ? l : l.map((n) => ({ ...n, key: n.key + 12 }))), 'pr-oct')}>+8va</button>
-      <button className="tbtn small text" title="Transpose down an octave" onClick={() => applyTransform((l) => (l.some((n) => n.key < 12) ? l : l.map((n) => ({ ...n, key: n.key - 12 }))), 'pr-oct')}>-8va</button>
+      <button className="tbtn small text" title="量化（Ctrl+Q）——选区或全部" onClick={doQuantize}>Q</button>
+      <button className="tbtn small text" title="连奏——把音符延长到下一个" onClick={() => applyTransform(legatoNotes, 'pr-legato')}>连</button>
+      <button className="tbtn small text" title="人性化时值与力度" onClick={() => applyTransform((l) => humanizeNotes(l, { timing: 3, velocity: 0.12 }), 'pr-human')}>人性</button>
+      <button className="tbtn small text" title="向上移八度" onClick={() => applyTransform((l) => (l.some((n) => n.key > 115) ? l : l.map((n) => ({ ...n, key: n.key + 12 }))), 'pr-oct')}>+8va</button>
+      <button className="tbtn small text" title="向下移八度" onClick={() => applyTransform((l) => (l.some((n) => n.key < 12) ? l : l.map((n) => ({ ...n, key: n.key - 12 }))), 'pr-oct')}>-8va</button>
       <span className="sep" />
-      <button className={`tbtn small text ${scaleOn ? 'active' : ''}`} title="Highlight scale" onClick={() => setScaleOn(!scaleOn)}>Scale</button>
+      <button className={`tbtn small text ${scaleOn ? 'active' : ''}`} title="高亮音阶" onClick={() => setScaleOn(!scaleOn)}>音阶</button>
       {scaleOn && (
         <>
-          <Select value={project.key || 'C'} title="Key" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { key: v } }])} options={PC_NAMES} />
-          <Select value={project.scale || 'minor'} title="Scale" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { scale: v } }])} options={Object.keys(SCALES)} />
+          <Select value={project.key || 'C'} title="音高" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { key: v } }])} options={PC_NAMES} />
+          <Select value={project.scale || 'minor'} title="音阶" onChange={(v) => st.dispatch([{ type: 'project/update', patch: { scale: v } }])} options={Object.keys(SCALES).map((k) => ({ value: k, label: scaleLabel(k) }))} />
         </>
       )}
-      <button className={`tbtn small text ${ghosts ? 'active' : ''}`} title="Show other channels as ghost notes" onClick={() => setGhosts(!ghosts)}>Ghost</button>
-      <button className="tbtn small text" title="Generate notes with a generator plugin" onClick={() => st.openWindow('generate')}>Gen</button>
+      <button className={`tbtn small text ${ghosts ? 'active' : ''}`} title="显示其它通道为幽灵音符" onClick={() => setGhosts(!ghosts)}>幽灵</button>
+      <button className="tbtn small text" title="用生成器插件生成音符" onClick={() => st.openWindow('generate')}>生成</button>
       <span className="sep" />
-      <button className="tbtn small" title="Zoom out" onClick={() => setPpt((z) => Math.max(0.25, z / 1.4))}><Icon name="zoomOut" size={14} /></button>
-      <button className="tbtn small" title="Zoom in" onClick={() => setPpt((z) => Math.min(4, z * 1.4))}><Icon name="zoomIn" size={14} /></button>
-      <button className="tbtn small text" title="Taller keys" onClick={() => setKeyH((h) => (h >= 22 ? 10 : h + 4))}>↕</button>
+      <button className="tbtn small" title="缩小" onClick={() => setPpt((z) => Math.max(0.25, z / 1.4))}><Icon name="zoomOut" size={14} /></button>
+      <button className="tbtn small" title="放大" onClick={() => setPpt((z) => Math.min(4, z * 1.4))}><Icon name="zoomIn" size={14} /></button>
+      <button className="tbtn small text" title="加高琴键" onClick={() => setKeyH((h) => (h >= 22 ? 10 : h + 4))}>↕</button>
+      <span className="sep" />
+      <button className={`tbtn small text ${help ? 'active' : ''}`} title="怎么用？点开提示" onClick={() => setHelp(!help)}>?</button>
     </>
   );
 
@@ -418,15 +428,15 @@ export function PianoRoll() {
   for (let b = 0; b * bar < gridTicks; b++) bars.push(b);
 
   return (
-    <Window name="pianoRoll" title={`Piano roll — ${channel.name} · ${pattern.name}`} icon="piano" toolbar={toolbar} minW={480} minH={240} className="piano-roll">
+    <Window name="pianoRoll" title={`钢琴卷帘 — ${channel.name} · ${pattern.name}`} icon="piano" toolbar={toolbar} minW={480} minH={240} className="piano-roll">
       <div className="pr-scroll" ref={scrollRef} onWheel={(e) => {
         if (e.ctrlKey) { e.preventDefault(); setPpt((z) => Math.max(0.25, Math.min(4, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))); }
       }}>
         <div className="pr-inner" style={{ width: KEYW + gridW, height: RULER + gridH + VEL_H }}>
-          <div className="pr-ruler" style={{ width: KEYW + gridW }}>
+          <div className="pr-ruler" ref={rulerRef} style={{ width: KEYW + gridW }} title="双指捏合缩放">
             <div className="pr-corner">{melodic ? '' : 'drum'}</div>
             {bars.map((b) => <span key={b} className="pr-bar" style={{ left: KEYW + b * barW }}>{b + 1}</span>)}
-            <div className="pr-end" style={{ left: KEYW + patLen * ppt }} title="Pattern end" />
+            <div className="pr-end" style={{ left: KEYW + patLen * ppt }} title="片段结尾" />
           </div>
           <div className="pr-body">
             <div className="pr-keys" style={{ height: gridH }}>
@@ -459,7 +469,7 @@ export function PianoRoll() {
             </div>
           </div>
           <div className="pr-vel" style={{ width: KEYW + gridW, height: VEL_H }}>
-            <div className="pr-vel-label">Vel</div>
+            <div className="pr-vel-label">力度</div>
             <div className="pr-vel-lane" style={{ width: gridW }} onPointerDown={(e) => onVelPointer(e, true)} onPointerMove={(e) => onVelPointer(e, false)} onPointerUp={() => { velDrag.current = null; }}>
               {view.map((n) => (
                 <div key={n.id} className={`pr-vel-bar ${selected.has(n.id) ? 'sel' : ''}`} style={{ left: n.start * ppt, height: `${n.velocity * 100}%`, '--note-color': channel.color }} />
@@ -469,6 +479,22 @@ export function PianoRoll() {
           <div ref={playRef} className="pr-playhead" style={{ height: RULER + gridH }} />
         </div>
       </div>
+      {help && (
+        <div className="win-help" onClick={() => setHelp(false)}>
+          <div className="win-help-card" onClick={(e) => e.stopPropagation()}>
+            <h4>钢琴卷帘怎么用？</h4>
+            <ul>
+              <li><b>在格子上单击</b>画出音符；拖动音符移动，拖右边缘改长短。</li>
+              <li><b>右键音符</b>删除；点左边的琴键可以试听音高。</li>
+              <li>工具栏选「和弦印章」后再点格子，<b>一键画出一个和弦</b>。</li>
+              <li>下方的「力度」条：上下拖动调音符强弱。</li>
+              <li>「音阶」开关会只亮出调内音，顺着亮行画就好听。</li>
+              <li>触屏：一指拖动滚动画面，<b>轻点</b>画音符。</li>
+            </ul>
+            <button className="btn tiny" onClick={() => setHelp(false)}>知道了</button>
+          </div>
+        </div>
+      )}
     </Window>
   );
 }

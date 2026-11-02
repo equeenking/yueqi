@@ -192,13 +192,13 @@ function ModalDialog({ modal }) {
         )}
         {about ? (
           <div className="modal-actions">
-            <button className="btn" onClick={() => { modal.resolve('help'); useStore.getState().openWindow('help'); }}>Shortcuts &amp; help</button>
-            <button className="btn primary" autoFocus onClick={ok}>Close</button>
+            <button className="btn" onClick={() => { modal.resolve('help'); useStore.getState().openWindow('help'); }}>快捷键与帮助</button>
+            <button className="btn primary" autoFocus onClick={ok}>关闭</button>
           </div>
         ) : (
           <div className="modal-actions">
-            <button className="btn" onClick={cancel}>Cancel</button>
-            <button className={`btn ${modal.danger ? 'danger' : 'primary'}`} autoFocus={modal.kind !== 'prompt'} onClick={ok}>{modal.okLabel || 'OK'}</button>
+            <button className="btn" onClick={cancel}>取消</button>
+            <button className={`btn ${modal.danger ? 'danger' : 'primary'}`} autoFocus={modal.kind !== 'prompt'} onClick={ok}>{modal.okLabel || '确定'}</button>
           </div>
         )}
       </div>

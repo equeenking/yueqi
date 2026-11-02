@@ -10,6 +10,7 @@ import { renderProject } from '../audio/render.js';
 import { preparePlugins } from '../audio/plugins.js';
 import { AudioEngine, sampleFileUrl, sampleRev } from '../audio/engine.js';
 import { getEngine } from '../audio/index.js';
+import { waitForAllInstruments } from '../audio/sampleBank.js';
 import { api } from '../state/api.js';
 import { useStore } from '../state/store.js';
 import { exportSpatial } from './spatialExport.js';
@@ -22,26 +23,26 @@ export async function runJob(jobId, job, sync) {
   const st = useStore.getState();
   try {
     if (job.kind === 'render') {
-      useStore.setState({ busy: 'Claude is rendering the mix…' });
+      useStore.setState({ busy: 'Claude 正在渲染混音…' });
       await renderJob(jobId, job, sync);
     } else if (job.kind === 'sound') {
       const fd = new FormData();
       fd.append('result', JSON.stringify(await soundJob(job)));
       await api.jobResult(jobId, fd);
     } else if (job.kind === 'export-stems') {
-      useStore.setState({ busy: 'Exporting stems…' });
+      useStore.setState({ busy: '正在导出分轨…' });
       await exportStems(job, { jobId, sync });
     } else if (job.kind === 'spatial') {
       useStore.setState({ busy: `Rendering the spatial mix (${job.format})…` });
       const r = await exportSpatial(job, { jobId, sync });
-      st.toast(`Spatial export (${job.format}): ${r.files.length} file(s) in Projects → Exports`, 'claude');
+      st.toast(`空间导出（${job.format}）：${r.files.length} 个文件在「工程 → 导出」`, 'claude');
     } else if (job.kind === 'generator') {
       const code = await api.pluginCode(job.plugin);
       const r = await runInSandbox(code, job.input, { timeoutMs: 2000 });
       const fd = new FormData();
       fd.append('result', JSON.stringify({ ok: r.ok, error: r.error || null, notes: r.ok ? r.notes : null }));
       await api.jobResult(jobId, fd);
-      if (r.ok) st.toast(`Claude ran the ${job.plugin} generator`, 'claude', 1800);
+      if (r.ok) st.toast(`Claude 跑了 ${job.plugin} 生成器`, 'claude', 1800);
     } else if (job.kind === 'sample-edit') {
       const fd = new FormData();
       fd.append('result', JSON.stringify(await runSampleEditJob(job)));
@@ -58,7 +59,7 @@ export async function runJob(jobId, job, sync) {
   } catch (e) {
     console.error('job failed', e);
     sync.send({ type: 'job-error', jobId, message: e.message || String(e) });
-    st.toast(`Render/analysis failed: ${e.message}`, 'error');
+    st.toast(`渲染／分析失败：${e.message}`, 'error');
   } finally {
     if (job.kind === 'render' || job.kind === 'export-stems' || job.kind === 'spatial') useStore.setState({ busy: null });
   }
@@ -88,12 +89,12 @@ async function renderJob(jobId, job, sync) {
   const mode = job.mode === 'song' && songLength(project) > 0 ? 'song' : 'pattern';
   const samples = getEngine()?.samples || new Map();
   const opts = { mode, patternId: job.patternId, loops: job.loops || 2, tail: 1.5, samples, encode: false, meterLimiter: true };
-  st.toast('Claude is rendering and analysing the mix…', 'claude', 2500);
+  st.toast('Claude 正在渲染并分析混音…', 'claude', 2500);
 
   const wanted = [];
   if (job.stems) {
     for (const ch of activeChannels(project, mode, job.patternId).slice(0, MAX_STEMS)) wanted.push({ channelId: ch.id, name: ch.name, mixerTrack: ch.mixerTrack });
-    if (mode === 'song' && project.playlist.clips.some((c) => c.kind === 'audio')) wanted.push({ name: 'Audio clips', audioClips: true });
+    if (mode === 'song' && project.playlist.clips.some((c) => c.kind === 'audio')) wanted.push({ name: '音频片段', audioClips: true });
   }
   const progress = (p) => sync.send({ type: 'job-progress', jobId, progress: Math.round(p * 100) / 100 });
   const { buffer, stems: metered, limiter } = await renderProject(project, { ...opts, stems: wanted, onProgress: (p) => progress(p * 0.85) });
@@ -110,7 +111,7 @@ async function renderJob(jobId, job, sync) {
   if (job.save) fd.append('file', new Blob([encodeWav(channels, buffer.sampleRate, { bitDepth: job.bitDepth === 16 ? 16 : 24 })], { type: 'audio/wav' }), 'mix.wav');
   await api.jobResult(jobId, fd);
   if (job.save) useStore.setState((s) => ({ exportsRev: s.exportsRev + 1 }));
-  st.toast(`Mix analysed: ${mix.lufs} LUFS, peak ${mix.peakDb} dBFS`, 'claude');
+  st.toast(`混音已分析：整体响度 ${mix.lufs} LUFS，峰值 ${mix.peakDb} dBFS`, 'claude');
 }
 
 function stemSummary(s) {
@@ -154,7 +155,7 @@ async function soundJob(job) {
   const st = useStore.getState();
   const project = st.project?.id === job.projectId ? st.project : await api.getProject(job.projectId);
   const ch = project.channels.find((c) => c.id === job.channelId);
-  if (!ch) throw new Error('Channel not found');
+  if (!ch) throw new Error('找不到通道');
   const viaInsert = job.through === 'insert' && ch.mixerTrack > 0;
   const master = { ...project.mixer[0], effects: [], volume: 1, pan: 0, mute: false, solo: false };
   const solo = {
@@ -172,6 +173,7 @@ async function soundJob(job) {
   eng.samples = getEngine()?.samples || new Map();
   eng.setProject(solo);
   // the same preparation as a full render: samples, physical-model notes, plugin modules/samples in this context
+  await waitForAllInstruments(); // a render/sound job needs every decoded WAV, not just the manifest skeleton
   await Promise.all([eng.loadNeededSamples(solo), eng.prewarmModels(solo), preparePlugins(ctx, solo)]);
   const melodic = INSTRUMENTS[ch.instrument.kind]?.melodic;
   const key = job.key ?? (melodic ? ch.rootKey : 60);
@@ -211,8 +213,8 @@ export async function exportStems(job, { jobId, sync } = {}) {
   const active = activeChannels(project, mode, job.patternId);
   const wanted = active.slice(0, STEM_LIMIT).map((c) => ({ channelId: c.id, name: c.name }));
   const skipped = active.slice(STEM_LIMIT).map((c) => c.name);
-  if (mode === 'song' && project.playlist.clips.some((c) => c.kind === 'audio' && !c.mute)) wanted.push({ name: 'Audio clips', audioClips: true });
-  if (!wanted.length) throw new Error('Nothing plays in this song/pattern, so there are no stems to export');
+  if (mode === 'song' && project.playlist.clips.some((c) => c.kind === 'audio' && !c.mute)) wanted.push({ name: '音频片段', audioClips: true });
+  if (!wanted.length) throw new Error('这首歌／片段里没有可发声的内容，因此没有分轨可导出');
   const bitDepth = job.bitDepth === 16 ? 16 : 24;
   // stems ignore insert solo (it would silence every other insert) and, by default, the master bus effects
   const base = { ...project, mixer: project.mixer.map((m, i) => ({ ...m, solo: false, ...(i === 0 && !job.masterFx ? { effects: [] } : {}) })) };
@@ -244,7 +246,7 @@ export async function exportStems(job, { jobId, sync } = {}) {
     await api.jobResult(jobId, fd);
   }
   useStore.setState((s) => ({ exportsRev: s.exportsRev + 1 }));
-  st.toast(`Exported ${files.length} stems to Projects → Exports${skipped.length ? ` (the first ${STEM_LIMIT} channels; skipped ${skipped.join(', ')})` : ''}`, job.fromUi ? 'info' : 'claude');
+  st.toast(`已导出 ${files.length} 条分轨到「工程 → 导出」${skipped.length ? `（只做前 ${STEM_LIMIT} 个通道，跳过 ${skipped.join('、')}）` : ''}`, job.fromUi ? 'info' : 'claude');
   return files;
 }
 

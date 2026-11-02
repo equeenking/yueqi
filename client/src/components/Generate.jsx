@@ -30,7 +30,7 @@ export function Generate() {
     setBusy(true);
     try {
       const n = await generateNotes({ entry, patternId: pattern.id, channelId: channel.id, params, bars: bars || null, seed });
-      useStore.getState().toast(`${entry.name}: ${n} notes on ${channel.name}`, 'success', 1600);
+      useStore.getState().toast(`${entry.name}：${n} 个音符放在「${channel.name}」`, 'success', 1600);
     } catch (e) {
       useStore.getState().toast(e.message, 'error');
     } finally {
@@ -38,31 +38,31 @@ export function Generate() {
     }
   };
   return (
-    <Window name="generate" title="Generate notes" icon="plugin" minW={340} minH={260} className="generate">
+    <Window name="generate" title="生成音符" icon="plugin" minW={340} minH={260} className="generate">
       <div className="generate-body">
         {!gens.length ? (
-          <p className="empty-hint">No generator plugins installed. Install one in Settings → Plugins (e.g. the Euclidean Rhythms example: <code>npm run plugin:pack -- --examples</code> puts it in <code>plugins/dist</code>).</p>
+          <p className="empty-hint">还没装生成器插件。到「设置 → 插件」里装一个（例如「欧几里得节奏」示例：跑 <code>npm run plugin:pack -- --examples</code>，它会生成到 <code>plugins/dist</code>）。</p>
         ) : (
           <>
             <div className="row">
               <label className="param-select">
                 <Select value={entry.id} onChange={(v) => { setPluginId(v); setPreset(null); setValues({}); }} options={gens.map((p) => ({ value: p.id, label: p.name }))} />
-                <span>Generator</span>
+                <span>生成器</span>
               </label>
               <label className="param-select">
                 <Select value={pr} onChange={(v) => { setPreset(v); setValues({}); }} options={Object.keys(m.presets)} />
-                <span>Preset</span>
+                <span>预设</span>
               </label>
               <label className="param-select">
-                <Select value={bars} onChange={(v) => setBars(Number(v))} options={[{ value: 0, label: 'Pattern' }, ...[1, 2, 4, 8, 16].map((b) => ({ value: b, label: `${b} bar${b > 1 ? 's' : ''}` }))]} />
-                <span>Length</span>
+                <Select value={bars} onChange={(v) => setBars(Number(v))} options={[{ value: 0, label: '片段' }, ...[1, 2, 4, 8, 16].map((b) => ({ value: b, label: `${b} 小节` }))]} />
+                <span>长度</span>
               </label>
             </div>
-            <p className="muted small">Into <b>{channel?.name}</b> · <b>{pattern?.name}</b> (replaces that range). {m.description}</p>
+            <p className="muted small">到 <b>{channel?.name}</b> · <b>{pattern?.name}</b> (replaces that range). {m.description}</p>
             <ParamControls defs={m.params} values={params} color="var(--accent-3)" onChange={(k, v) => setValues((x) => ({ ...x, [k]: v }))} />
             <div className="row">
-              <button className="btn primary" disabled={busy || !channel || !pattern} onClick={() => run()} data-testid="generate-run"><Icon name="plugin" size={13} /> {busy ? 'Generating…' : 'Generate'}</button>
-              <span className="muted small">Runs sandboxed in this browser: no network, 2 s limit.</span>
+              <button className="btn primary" disabled={busy || !channel || !pattern} onClick={() => run()} data-testid="generate-run"><Icon name="plugin" size={13} /> {busy ? '正在生成…' : '生成'}</button>
+              <span className="muted small">在浏览器沙箱内运行：不联网，限时 2 秒。</span>
             </div>
           </>
         )}

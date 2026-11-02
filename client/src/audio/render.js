@@ -3,6 +3,7 @@ import { patternLength, songLength, ticksPerBar, PPQ, encodeWav, createLevelMete
 import { AudioEngine } from './engine.js';
 import { LIMITER_HEADROOM } from './effects.js';
 import { preparePlugins } from './plugins.js';
+import { waitForAllInstruments } from './sampleBank.js';
 
 const TAP_SIZE = 32768; // AnalyserNode history (max fftSize) — must exceed one chunk
 
@@ -39,6 +40,7 @@ export async function renderProject(project, opts = {}) {
   const eng = new AudioEngine(ctx, { realtime: false, spatial: sp });
   eng.samples = samples;
   eng.setProject(project);
+  await waitForAllInstruments(); // an export must use every decoded recording, not just what the manifest lists
   await Promise.all([eng.loadNeededSamples(project), eng.prewarmModels(project), preparePlugins(ctx, project)]);
   const transport = eng.transport;
   const playMode = songMode ? 'song' : 'pattern';
@@ -70,7 +72,7 @@ export async function renderProject(project, opts = {}) {
         }
         return ctx.resume();
       }).catch((e) => {
-        console.error('render chunk failed', e);
+        console.error('渲染分块失败', e);
         ctx.resume().catch(() => {});
       });
     }
@@ -188,7 +190,7 @@ function attachStemTaps(eng, ctx, stems) {
     let tap = 'channel';
     if (stem.audioClips) {
       node = eng.clipBus();
-      tap = 'audio clips';
+      tap = '音频片段';
     } else {
       const ch = project.channels.find((c) => c.id === stem.channelId);
       const strip = ch && eng.strips.get(ch.id);

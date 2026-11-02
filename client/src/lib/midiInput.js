@@ -26,13 +26,13 @@ function bindInputs() {
     input.onmidimessage = onMessage;
     names.push(input.name);
   }
-  useStore.setState({ midiStatus: names.length ? `MIDI: ${names.join(', ')}` : 'MIDI enabled (no devices)' });
+  useStore.setState({ midiStatus: names.length ? `MIDI: ${names.join(', ')}` : 'MIDI 已启用（没有设备）' });
 }
 
 export async function connectMidi() {
   const st = useStore.getState();
   if (!navigator.requestMIDIAccess) {
-    st.toast('Web MIDI is not supported in this browser (try Chrome or Edge)', 'warn');
+    st.toast('此浏览器不支持 Web MIDI（请用 Chrome 或 Edge）', 'warn');
     return;
   }
   try {
@@ -42,6 +42,6 @@ export async function connectMidi() {
     bindInputs();
     st.toast(useStore.getState().midiStatus, 'success');
   } catch (e) {
-    st.toast(`MIDI access denied: ${e.message}`, 'error');
+    st.toast(`MIDI 设备被拒绝访问：${e.message}`, 'error');
   }
 }

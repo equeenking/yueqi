@@ -113,7 +113,7 @@ export function Knob({
 
   return (
     <div className={`knob ${disabled ? 'disabled' : ''}`} title={tip} role="slider" tabIndex={disabled ? -1 : 0}
-      aria-label={label || title || 'Knob'} aria-valuemin={min} aria-valuemax={max} aria-valuenow={typeof value === 'number' ? value : undefined}
+      aria-label={label || title || '旋钮'} aria-valuemin={min} aria-valuemax={max} aria-valuenow={typeof value === 'number' ? value : undefined}
       aria-valuetext={formatValue(value, { unit, step })} aria-disabled={disabled || undefined} onKeyDown={onKeyDown}>
       <svg ref={ref} width={size} height={size} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
         onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel} onDoubleClick={onDoubleClick}>
